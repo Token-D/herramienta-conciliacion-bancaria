@@ -18,10 +18,11 @@ def buscar_fila_encabezados(df, columnas_esperadas, max_filas=50):
     """
     for idx, fila in df.head(max_filas).iterrows():
         # Convertir la fila a una lista de cadenas
-        celdas = [str(celda).lower() for celda in fila]
+        celdas = [str(valor).lower() for valor in fila]
 
         # Verificar si todas las columnas esperadas están en la fila
-        if all(any(variante.lower() in celda for variante in columnas_esperadas[col]) for col in columnas_esperadas):
+        if all(any(variante.lower() in celda for celda in celdas) for variante in columnas_esperadas["fecha"]) and \
+           all(any(variante.lower() in celda for celda in celdas) for variante in columnas_esperadas["monto"]):
             return idx
     return None
 
