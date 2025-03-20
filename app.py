@@ -136,8 +136,8 @@ auxiliar_file = st.file_uploader("Subir Libro Auxiliar (Excel)", type=["xlsx"])
 
 if extracto_file and auxiliar_file:
     # Leer archivos Excel
-    extracto_df = pd.read_excel(extracto_file, sheet_name="Extracto")
-    auxiliar_df = pd.read_excel(auxiliar_file, sheet_name="Auxiliar")
+    extracto_df = pd.read_excel(extracto_file, sheet_name=0)  # Lee la primera hoja
+    auxiliar_df = pd.read_excel(auxiliar_file, sheet_name=0)  # Lee la primera hoja
 
     # Realizar conciliación
     resultados_df = conciliar_banco_excel(extracto_df, auxiliar_df)
