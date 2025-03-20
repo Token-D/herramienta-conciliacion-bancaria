@@ -21,8 +21,7 @@ def buscar_fila_encabezados(df, columnas_esperadas, max_filas=50):
         celdas = [str(valor).lower() for valor in fila]
 
         # Verificar si todas las columnas esperadas están en la fila
-        if all(any(variante.lower() in celda for celda in celdas) for variante in columnas_esperadas["fecha"]) and \
-           all(any(variante.lower() in celda for celda in celdas) for variante in columnas_esperadas["monto"]):
+        if all(any(variante.lower() in celda for celda in celdas) for col, variantes in columnas_esperadas.items() for variante in variantes):
             return idx
     return None
 
@@ -168,9 +167,10 @@ if extracto_file and auxiliar_file:
     try:
         # Definir las columnas esperadas y sus posibles variantes
         columnas_esperadas_extracto = {
-            "fecha": ["fecha", "date", "fecha de operación", "fecha_operacion"],
-            "monto": ["monto", "importe", "valor", "amount"],
-            "concepto": ["concepto", "descripción", "observaciones", "concepto banco"]
+            "fecha": ["fecha de operación", "fecha", "date", "fecha_operacion"],
+            "monto": ["importe (cop)", "monto", "valor", "amount"],
+            "concepto": ["concepto", "descripción", "observaciones", "concepto banco"],
+            "numero_movimiento": ["número de movimiento", "numero de movimiento", "movimiento"]
         }
 
         columnas_esperadas_auxiliar = {
