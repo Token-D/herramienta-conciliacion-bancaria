@@ -3,14 +3,66 @@ import pandas as pd
 from io import BytesIO
 from itertools import combinations
 
+# Función para buscar la fila de encabezados
+def buscar_fila_encabezados(df, columnas_esperadas):
+    """
+    Busca la fila que contiene los nombres de las columnas esperadas.
+
+    Args:
+        df (DataFrame): El DataFrame del archivo de Excel.
+        columnas_esperadas (dict): Un diccionario con los nombres esperados y sus posibles variantes.
+
+    Returns:
+        int: El índice de la fila que contiene los encabezados.
+    """
+    for idx, fila in df.iterrows():
+        # Convertir la fila a una lista de cadenas
+        celdas = [str(celda).lower() for celda in fila]
+
+        # Verificar si todas las columnas esperadas están en la fila
+        if all(any(variante.lower() in celda for variante in columnas_esperadas[col]) for col in columnas_esperadas):
+            return idx
+    return None
+
+# Función para leer datos a partir de la fila de encabezados
+def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo):
+    """
+    Lee los datos de un archivo de Excel a partir de la fila que contiene los encabezados.
+
+    Args:
+        archivo (UploadedFile): El archivo de Excel cargado en Streamlit.
+        columnas_esperadas (dict): Un diccionario con los nombres esperados y sus posibles variantes.
+        nombre_archivo (str): El nombre del archivo (para mensajes de error).
+
+    Returns:
+        DataFrame: El DataFrame con los datos correctamente cargados.
+    """
+    # Leer el archivo de Excel sin asumir que los encabezados están en la primera fila
+    df = pd.read_excel(archivo, header=None)
+
+    # Mostrar las primeras filas del archivo para depuración
+    st.write(f"Vista previa de las primeras filas del archivo {nombre_archivo}:")
+    st.write(df.head())
+
+    # Buscar la fila de encabezados
+    fila_encabezados = buscar_fila_encabezados(df, columnas_esperadas)
+    if fila_encabezados is None:
+        st.error(f"No se encontraron los encabezados necesarios en el archivo {nombre_archivo}.")
+        st.stop()
+
+    # Leer los datos a partir de la fila de encabezados
+    df = pd.read_excel(archivo, header=fila_encabezados)
+    return df
+
 # Función para identificar columnas
-def identificar_columnas(df, columnas_esperadas):
+def identificar_columnas(df, columnas_esperadas, nombre_archivo):
     """
     Identifica las columnas necesarias en un DataFrame basándose en coincidencias parciales.
 
     Args:
         df (DataFrame): El DataFrame del archivo de Excel.
         columnas_esperadas (dict): Un diccionario con los nombres esperados y sus posibles variantes.
+        nombre_archivo (str): El nombre del archivo (para mensajes de error).
 
     Returns:
         dict: Un diccionario con las columnas identificadas.
@@ -18,11 +70,12 @@ def identificar_columnas(df, columnas_esperadas):
     columnas_identificadas = {}
     for col_esperada, variantes in columnas_esperadas.items():
         for col in df.columns:
-            if any(variante.lower() in col.lower() for variante in variantes):
+            if any(variante.lower() in str(col).lower() for variante in variantes):
                 columnas_identificadas[col_esperada] = col
                 break
         else:
-            st.error(f"No se encontró una columna que coincida con: {', '.join(variantes)}")
+            st.error(f"No se encontró una columna que coincida con: {', '.join(variantes)} en el archivo {nombre_archivo}.")
+            st.error(f"Columnas encontradas en el archivo: {', '.join(df.columns)}")
             st.stop()
     return columnas_identificadas
 
@@ -107,26 +160,26 @@ auxiliar_file = st.file_uploader("Subir Libro Auxiliar (Excel)", type=["xlsx"])
 
 if extracto_file and auxiliar_file:
     try:
-        # Leer la primera hoja de ambos archivos
-        extracto_df = pd.read_excel(extracto_file, sheet_name=0)
-        auxiliar_df = pd.read_excel(auxiliar_file, sheet_name=0)
-
         # Definir las columnas esperadas y sus posibles variantes
         columnas_esperadas_extracto = {
-            "fecha": ["fecha", "date", "fecha de operación"],
+            "fecha": ["fecha", "date", "fecha de operación", "fecha_operacion"],
             "monto": ["monto", "importe", "valor", "amount"],
             "concepto": ["concepto", "descripción", "observaciones", "concepto banco"]
         }
 
         columnas_esperadas_auxiliar = {
-            "fecha": ["fecha", "date", "fecha de operación"],
+            "fecha": ["fecha", "date", "fecha de operación", "fecha_operacion"],
             "monto": ["monto", "importe", "valor", "amount"],
             "nota": ["nota", "nota libro auxiliar", "descripción", "observaciones"]
         }
 
+        # Leer los datos a partir de la fila de encabezados
+        extracto_df = leer_datos_desde_encabezados(extracto_file, columnas_esperadas_extracto, "Extracto Bancario")
+        auxiliar_df = leer_datos_desde_encabezados(auxiliar_file, columnas_esperadas_auxiliar, "Libro Auxiliar")
+
         # Identificar y normalizar las columnas
-        columnas_extracto = identificar_columnas(extracto_df, columnas_esperadas_extracto)
-        columnas_auxiliar = identificar_columnas(auxiliar_df, columnas_esperadas_auxiliar)
+        columnas_extracto = identificar_columnas(extracto_df, columnas_esperadas_extracto, "Extracto Bancario")
+        columnas_auxiliar = identificar_columnas(auxiliar_df, columnas_esperadas_auxiliar, "Libro Auxiliar")
 
         extracto_df = normalizar_dataframe(extracto_df, columnas_extracto)
         auxiliar_df = normalizar_dataframe(auxiliar_df, columnas_auxiliar)
