@@ -4,18 +4,19 @@ from io import BytesIO
 from itertools import combinations
 
 # Función para buscar la fila de encabezados
-def buscar_fila_encabezados(df, columnas_esperadas):
+def buscar_fila_encabezados(df, columnas_esperadas, max_filas=50):
     """
     Busca la fila que contiene los nombres de las columnas esperadas.
 
     Args:
         df (DataFrame): El DataFrame del archivo de Excel.
         columnas_esperadas (dict): Un diccionario con los nombres esperados y sus posibles variantes.
+        max_filas (int): El número máximo de filas para buscar los encabezados.
 
     Returns:
         int: El índice de la fila que contiene los encabezados.
     """
-    for idx, fila in df.iterrows():
+    for idx, fila in df.head(max_filas).iterrows():
         # Convertir la fila a una lista de cadenas
         celdas = [str(celda).lower() for celda in fila]
 
@@ -25,7 +26,7 @@ def buscar_fila_encabezados(df, columnas_esperadas):
     return None
 
 # Función para leer datos a partir de la fila de encabezados
-def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo):
+def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, max_filas=50):
     """
     Lee los datos de un archivo de Excel a partir de la fila que contiene los encabezados.
 
@@ -33,6 +34,7 @@ def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo):
         archivo (UploadedFile): El archivo de Excel cargado en Streamlit.
         columnas_esperadas (dict): Un diccionario con los nombres esperados y sus posibles variantes.
         nombre_archivo (str): El nombre del archivo (para mensajes de error).
+        max_filas (int): El número máximo de filas para buscar los encabezados.
 
     Returns:
         DataFrame: El DataFrame con los datos correctamente cargados.
@@ -41,14 +43,17 @@ def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo):
     df = pd.read_excel(archivo, header=None)
 
     # Mostrar las primeras filas del archivo para depuración
-    st.write(f"Vista previa de las primeras filas del archivo {nombre_archivo}:")
-    st.write(df.head())
+    st.write(f"Vista previa de las primeras {max_filas} filas del archivo {nombre_archivo}:")
+    st.write(df.head(max_filas))
 
     # Buscar la fila de encabezados
-    fila_encabezados = buscar_fila_encabezados(df, columnas_esperadas)
+    fila_encabezados = buscar_fila_encabezados(df, columnas_esperadas, max_filas)
     if fila_encabezados is None:
         st.error(f"No se encontraron los encabezados necesarios en el archivo {nombre_archivo}.")
+        st.error(f"Se buscaron en las primeras {max_filas} filas.")
         st.stop()
+
+    st.success(f"Encabezados encontrados en la fila {fila_encabezados + 1} del archivo {nombre_archivo}.")
 
     # Leer los datos a partir de la fila de encabezados
     df = pd.read_excel(archivo, header=fila_encabezados)
@@ -174,8 +179,8 @@ if extracto_file and auxiliar_file:
         }
 
         # Leer los datos a partir de la fila de encabezados
-        extracto_df = leer_datos_desde_encabezados(extracto_file, columnas_esperadas_extracto, "Extracto Bancario")
-        auxiliar_df = leer_datos_desde_encabezados(auxiliar_file, columnas_esperadas_auxiliar, "Libro Auxiliar")
+        extracto_df = leer_datos_desde_encabezados(extracto_file, columnas_esperadas_extracto, "Extracto Bancario", max_filas=50)
+        auxiliar_df = leer_datos_desde_encabezados(auxiliar_file, columnas_esperadas_auxiliar, "Libro Auxiliar", max_filas=50)
 
         # Identificar y normalizar las columnas
         columnas_extracto = identificar_columnas(extracto_df, columnas_esperadas_extracto, "Extracto Bancario")
