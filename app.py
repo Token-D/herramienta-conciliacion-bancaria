@@ -87,7 +87,7 @@ def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, ma
     if col not in df.columns:
         st.error(f"La columna esperada '{col}' no se encontró en los datos leídos del archivo '{nombre_archivo}'.")
         st.stop()
-
+    
     return df
 
 # Función para identificar columnas
