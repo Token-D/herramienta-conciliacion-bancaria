@@ -57,6 +57,17 @@ def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, ma
 
     # Leer los datos a partir de la fila de encabezados
     df = pd.read_excel(archivo, header=fila_encabezados)
+    
+    # Mostrar el DataFrame resultante para verificar que se haya leído correctamente
+    st.write("Datos leídos correctamente:")
+    st.write(df.head())  # Muestra las primeras filas del DataFrame leído
+
+    # Verificar si el DataFrame tiene las columnas esperadas
+    for col in columnas_esperadas.keys():
+        if col not in df.columns:
+            st.error(f"La columna esperada '{col}' no se encontró en los datos leídos.")
+            st.stop()
+
     return df
 
 # Función para identificar columnas
