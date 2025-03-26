@@ -22,7 +22,10 @@ def buscar_fila_encabezados(df, columnas_esperadas, max_filas=50):
 
         # Verificar si todas las columnas esperadas están en la fila
         if all(any(variante.lower() in celda for celda in celdas) for col, variantes in columnas_esperadas.items() for variante in variantes):
+            st.write(f"Encabezados encontrados en la fila {idx + 1}: {fila.tolist()}")  # Mensaje de depuración
             return idx
+        else:
+            st.write(f"Fila {idx + 1} no coincide: {fila.tolist()}")  # Mensaje de depuración
     return None
 
 # Función para leer datos a partir de la fila de encabezados
