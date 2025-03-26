@@ -4,7 +4,7 @@ from io import BytesIO
 from itertools import combinations
 
 # Función para buscar la fila de encabezados
-def buscar_fila_encabezados(df, columnas_esperadas, max_filas=50):
+def buscar_fila_encabezados(df, columnas_esperadas, max_filas=25):
     """
     Busca la fila que contiene los nombres de las columnas esperadas.
 
@@ -16,18 +16,30 @@ def buscar_fila_encabezados(df, columnas_esperadas, max_filas=50):
     Returns:
         int: El índice de la fila que contiene los encabezados.
     """
-    for idx, fila in df.head(max_filas).iterrows():
-        # Filtrar celdas que no son NaN y convertir a minúsculas
-        celdas = [str(valor).lower() for valor in fila if pd.notna(valor)]
+    for idx in range(min(max_filas, len(df))):  # Limitar a max_filas o el número de filas en el DataFrame
+        fila = df.iloc[idx]  # Obtener la fila actual
+        celdas = [str(valor).lower() for valor in fila if pd.notna(valor)]  # Filtrar celdas no vacías
 
-        # Verificar si al menos uno de los encabezados esperados está presente
-        if any(any(variante.lower() in celda for celda in celdas) for col, variantes in columnas_esperadas.items() for variante in variantes):
-            # Verificar si al menos "fecha" o "importe" están presentes
-            if any(col in celdas for col in ['fecha', 'importe']):
-                st.write(f"Encabezados encontrados en la fila {idx + 1}: {fila.tolist()}")  # Mensaje de depuración
-                return idx
-        else:
-            st.write(f"Fila {idx + 1} no coincide: {fila.tolist()}")  # Mensaje de depuración
+        # Variables para verificar coincidencias
+        encontrado_fecha = False
+        encontrado_monto = False
+
+        # Revisar cada celda en la fila
+        for celda in celdas:
+            for col, variantes in columnas_esperadas.items():
+                if any(variante.lower() in celda for variante in variantes):
+                    if col == 'fecha':
+                        encontrado_fecha = True
+                    elif col == 'monto':
+                        encontrado_monto = True
+
+        # Si se encuentran ambos encabezados en la misma fila
+        if encontrado_fecha and encontrado_monto:
+            st.write(f"Encabezados encontrados en la fila {idx + 1}: {fila.tolist()}")  # Mensaje de depuración
+            return idx
+
+        st.write(f"Fila {idx + 1} no coincide: {fila.tolist()}")  # Mensaje de depuración
+
     return None
 
 # Función para leer datos a partir de la fila de encabezados
