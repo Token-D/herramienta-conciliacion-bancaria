@@ -16,9 +16,12 @@ def buscar_fila_encabezados(df, columnas_esperadas, max_filas=25):
     Returns:
         int: El índice de la fila que contiene los encabezados.
     """
+    # Convertir las variantes de los encabezados a minúsculas
+    columnas_esperadas_lower = {col: [variante.lower() for variante in variantes] for col, variantes in columnas_esperadas.items()}
+
     for idx in range(min(max_filas, len(df))):  # Limitar a max_filas o el número de filas en el DataFrame
         fila = df.iloc[idx]  # Obtener la fila actual
-        celdas = [str(valor).lower() for valor in fila if pd.notna(valor)]  # Filtrar celdas no vacías
+        celdas = [str(valor).lower() for valor in fila if pd.notna(valor)]  # Filtrar celdas no vacías y convertir a minúsculas
 
         # Variables para verificar coincidencias
         encontrado_fecha = False
@@ -26,8 +29,8 @@ def buscar_fila_encabezados(df, columnas_esperadas, max_filas=25):
 
         # Revisar cada celda en la fila
         for celda in celdas:
-            for col, variantes in columnas_esperadas.items():
-                if any(variante.lower() in celda for variante in variantes):
+            for col, variantes in columnas_esperadas_lower.items():
+                if any(variante in celda for variante in variantes):
                     if col == 'fecha':
                         encontrado_fecha = True
                     elif col == 'monto':
