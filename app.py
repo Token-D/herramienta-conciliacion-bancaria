@@ -77,8 +77,7 @@ def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, ma
 
     # Leer los datos a partir de la fila de encabezados
     df = pd.read_excel(archivo, header=fila_encabezados)
-    st.write("Datos leídos correctamente:")
-    st.write(df.head())  # Muestra las primeras filas del DataFrame leído
+    
 
     ## Normalizar las columnas
     df = normalizar_dataframe(df, columnas_esperadas_extracto)
@@ -90,6 +89,9 @@ def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, ma
             st.stop()
     
     return df
+
+    st.write("Datos leídos correctamente:")
+    st.write(df.head())  # Muestra las primeras filas del DataFrame leído
 
 # Función para identificar columnas
 def identificar_columnas(df, columnas_esperadas, nombre_archivo):
@@ -131,8 +133,15 @@ def normalizar_dataframe(df, columnas_esperadas):
     # Crear un mapeo de nombres de columnas basado en las variantes
     mapeo_columnas = {variante: col for col, variantes in columnas_esperadas.items() for variante in variantes}
 
+    # Mostrar el mapeo de columnas para depuración
+    st.write("Mapeo de columnas:", mapeo_columnas)
+
     # Renombrar las columnas según el mapeo
     df.rename(columns=mapeo_columnas, inplace=True)
+
+    # Mostrar el DataFrame después de renombrar las columnas para depuración
+    st.write("DataFrame después de renombrar columnas:")
+    st.write(df.head())  # Muestra las primeras filas del DataFrame leído
     
     # Opcional: Eliminar columnas no necesarias
     columnas_a_eliminar = [col for col in df.columns if col not in columnas_esperadas.keys()]
