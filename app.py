@@ -20,8 +20,8 @@ def buscar_fila_encabezados(df, columnas_esperadas, max_filas=50):
         # Filtrar celdas que no son NaN y convertir a minúsculas
         celdas = [str(valor).lower() for valor in fila if pd.notna(valor)]
 
-        # Verificar si al menos una de las columnas esperadas está en las celdas
-        if any(any(variante.lower() in celda for celda in celdas) for col, variantes in columnas_esperadas.items() for variante in variantes):
+        # Verificar si todos los encabezados esperados están en las celdas
+        if all(any(variante.lower() in celda for celda in celdas) for col, variantes in columnas_esperadas.items() for variante in variantes):
             st.write(f"Encabezados encontrados en la fila {idx + 1}: {fila.tolist()}")  # Mensaje de depuración
             return idx
         else:
