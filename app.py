@@ -77,6 +77,8 @@ def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, ma
 
     # Leer los datos a partir de la fila de encabezados
     df = pd.read_excel(archivo, header=fila_encabezados)
+    st.write("Datos leídos correctamente:")
+    st.write(df.head())  # Muestra las primeras filas del DataFrame leído
 
     # Normalizar las columnas
     columnas_identificadas = identificar_columnas(df, columnas_esperadas, nombre_archivo)
