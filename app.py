@@ -130,14 +130,14 @@ def normalizar_dataframe(df, columnas_esperadas):
     Returns:
         DataFrame: El DataFrame normalizado.
     """
-    # Crear un mapeo de nombres de columnas basado en las variantes
-    mapeo_columnas = {variante.lower().strip(): col for col, variantes in columnas_esperadas.items() for variante in variantes}
-
     # Convertir los nombres de las columnas del DataFrame a minúsculas y eliminar espacios
     df.columns = [col.lower().strip() for col in df.columns]
 
     # Eliminar columnas duplicadas
     df = df.loc[:, ~df.columns.duplicated()]
+
+    # Crear un mapeo de nombres de columnas basado en las variantes
+    mapeo_columnas = {variante.lower().strip(): col for col, variantes in columnas_esperadas.items() for variante in variantes}
 
     # Mostrar el mapeo de columnas para depuración
     st.write("Mapeo de columnas:", mapeo_columnas)
