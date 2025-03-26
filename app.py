@@ -136,6 +136,9 @@ def normalizar_dataframe(df, columnas_esperadas):
     # Convertir los nombres de las columnas del DataFrame a minúsculas y eliminar espacios
     df.columns = [col.lower().strip() for col in df.columns]
 
+    # Eliminar columnas duplicadas
+    df = df.loc[:, ~df.columns.duplicated()]
+
     # Mostrar el mapeo de columnas para depuración
     st.write("Mapeo de columnas:", mapeo_columnas)
 
