@@ -80,9 +80,8 @@ def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, ma
     st.write("Datos leídos correctamente:")
     st.write(df.head())  # Muestra las primeras filas del DataFrame leído
 
-    # Normalizar las columnas
-    columnas_identificadas = identificar_columnas(df, columnas_esperadas, nombre_archivo)
-    df = normalizar_dataframe(df, columnas_identificadas)
+    ## Normalizar las columnas
+    df = normalizar_dataframe(df, columnas_esperadas_extracto)
 
     # Verificar si el DataFrame tiene las columnas esperadas
     for col in columnas_esperadas.keys():
@@ -118,18 +117,28 @@ def identificar_columnas(df, columnas_esperadas, nombre_archivo):
     return columnas_identificadas
 
 # Función para normalizar un DataFrame
-def normalizar_dataframe(df, columnas_identificadas):
+def normalizar_dataframe(df, columnas_esperadas):
     """
     Normaliza un DataFrame para que use los nombres de columnas esperados.
 
     Args:
         df (DataFrame): El DataFrame original.
-        columnas_identificadas (dict): Un diccionario con las columnas identificadas.
+        columnas_esperadas (dict): Un diccionario con los nombres esperados y sus posibles variantes.
 
     Returns:
         DataFrame: El DataFrame normalizado.
     """
-    return df.rename(columns=columnas_identificadas)
+    # Crear un mapeo de nombres de columnas basado en las variantes
+    mapeo_columnas = {variante: col for col, variantes in columnas_esperadas.items() for variante in variantes}
+
+    # Renombrar las columnas según el mapeo
+    df.rename(columns=mapeo_columnas, inplace=True)
+    
+    # Opcional: Eliminar columnas no necesarias
+    columnas_a_eliminar = [col for col in df.columns if col not in columnas_esperadas.keys()]
+    df.drop(columns=columnas_a_eliminar, inplace=True, errors='ignore')
+    
+    return df
 
 # Función para encontrar combinaciones que sumen un monto específico
 def encontrar_combinaciones(movimientos, monto_objetivo, tolerancia=0.01):
