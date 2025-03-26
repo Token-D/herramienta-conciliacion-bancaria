@@ -17,8 +17,8 @@ def buscar_fila_encabezados(df, columnas_esperadas, max_filas=50):
         int: El índice de la fila que contiene los encabezados.
     """
     for idx, fila in df.head(max_filas).iterrows():
-        # Convertir la fila a una lista de cadenas
-        celdas = [str(valor).lower() for valor in fila]
+        # Convertir la fila a una lista de cadenas, ignorando NaN
+        celdas = [str(valor).lower() for valor in fila if pd.notna(valor)]
 
         # Verificar si todas las columnas esperadas están en la fila
         if all(any(variante.lower() in celda for celda in celdas) for col, variantes in columnas_esperadas.items() for variante in variantes):
