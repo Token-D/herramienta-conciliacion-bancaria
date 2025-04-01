@@ -145,21 +145,38 @@ def procesar_montos_auxiliar(df):
     # Si encontramos columnas de débito y crédito
     if cols_debito and cols_credito:
         # Crear nueva columna monto
-        df["monto"] = 0
+        df["monto"] = 0.0
         
-        # Sumar los débitos (valores positivos)
+        # Para cada columna de débito
         for col in cols_debito:
-            df["monto"] += df[col].fillna(0)
+            # Asegurarse de que la columna sea numérica
+            try:
+                # Intentar convertir a numérico, NaN si falla
+                df[col] = pd.to_numeric(df[col], errors='coerce')
+                # Reemplazar NaN con 0
+                df[col] = df[col].fillna(0)
+                # Sumar a la columna monto
+                df["monto"] += df[col]
+            except Exception as e:
+                st.warning(f"Error al procesar la columna de débito '{col}': {e}")
         
-        # Restar los créditos (valores negativos)
+        # Para cada columna de crédito
         for col in cols_credito:
-            df["monto"] -= df[col].fillna(0)
+            try:
+                # Intentar convertir a numérico, NaN si falla
+                df[col] = pd.to_numeric(df[col], errors='coerce')
+                # Reemplazar NaN con 0
+                df[col] = df[col].fillna(0)
+                # Restar de la columna monto
+                df["monto"] -= df[col]
+            except Exception as e:
+                st.warning(f"Error al procesar la columna de crédito '{col}': {e}")
             
         # Para verificar, mostrar algunos valores
         st.write("Primeros 5 montos calculados:", df["monto"].head(5).tolist())
         
-        # Eliminar columnas originales de débito y crédito
-        df.drop(columns=cols_debito + cols_credito, inplace=True, errors='ignore')
+        # Eliminar columnas originales de débito y crédito si se desea
+        # df.drop(columns=cols_debito + cols_credito, inplace=True, errors='ignore')
     else:
         st.warning("No se encontraron columnas de débito y crédito. Puede que los montos no se procesen correctamente.")
     
@@ -171,16 +188,38 @@ def encontrar_combinaciones(df, monto_objetivo, tolerancia=0.01, max_combinacion
     Encuentra combinaciones de valores en df['monto'] que sumen aproximadamente monto_objetivo.
     Devuelve lista de índices de las filas que conforman la combinación.
     """
-    movimientos = df["monto"].tolist()
-    indices = df.index.tolist()
+    # Asegurarse de que los montos sean numéricos
+    movimientos = []
+    indices_validos = []
+    
+    for idx, valor in zip(df.index, df["monto"]):
+        try:
+            # Intentar convertir a numérico
+            valor_num = float(valor)
+            movimientos.append(valor_num)
+            indices_validos.append(idx)
+        except (ValueError, TypeError):
+            # Ignorar valores que no se pueden convertir a flotante
+            continue
+    
+    if not movimientos:
+        return []
+    
     combinaciones_validas = []
+    
+    # Convertir monto_objetivo a numérico
+    try:
+        monto_objetivo = float(monto_objetivo)
+    except (ValueError, TypeError):
+        return []
     
     # Limitar la búsqueda a combinaciones pequeñas
     for r in range(1, min(max_combinacion, len(movimientos)) + 1):
         for combo_indices in combinations(range(len(movimientos)), r):
             combo_valores = [movimientos[i] for i in combo_indices]
-            if abs(sum(combo_valores) - monto_objetivo) <= tolerancia:
-                indices_combinacion = [indices[i] for i in combo_indices]
+            suma = sum(combo_valores)
+            if abs(suma - monto_objetivo) <= tolerancia:
+                indices_combinacion = [indices_validos[i] for i in combo_indices]
                 combinaciones_validas.append((indices_combinacion, combo_valores))
     
     # Ordenar por tamaño de combinación (preferimos las más pequeñas)
