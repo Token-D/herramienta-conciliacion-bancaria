@@ -399,7 +399,9 @@ def conciliacion_directa(extracto_df, auxiliar_df):
                 'origen': 'Banco',
                 'estado': 'Conciliado',
                 'tipo_conciliacion': 'Directa',
-                'doc_conciliacion': fila_auxiliar.get('numero_movimiento', '')
+                'doc_conciliacion': fila_auxiliar.get('numero_movimiento', ''),
+                'index_original': idx_extracto,  # Guardar índice original
+                'tipo_registro': 'extracto'
             })
 
             # Añadir a resultados - entrada del libro auxiliar
@@ -411,7 +413,9 @@ def conciliacion_directa(extracto_df, auxiliar_df):
                 'origen': 'Libro Auxiliar',
                 'estado': 'Conciliado',
                 'tipo_conciliacion': 'Directa',
-                'doc_conciliacion': fila_extracto.get('numero_movimiento', '')
+                'doc_conciliacion': fila_extracto.get('numero_movimiento', ''),
+                'index_original': idx_auxiliar,  # Guardar índice original
+                'tipo_registro': 'auxiliar'
             })
     
     # Registros no conciliados del extracto bancario
@@ -425,7 +429,9 @@ def conciliacion_directa(extracto_df, auxiliar_df):
                 'origen': 'Banco',
                 'estado': 'No Conciliado',
                 'tipo_conciliacion': '',
-                'doc_conciliacion': ''
+                'doc_conciliacion': '',
+                'index_original': idx_extracto,  # Guardar índice original
+                'tipo_registro': 'extracto'
             })
     
     # Registros no conciliados del libro auxiliar
@@ -439,7 +445,9 @@ def conciliacion_directa(extracto_df, auxiliar_df):
                 'origen': 'Libro Auxiliar',
                 'estado': 'No Conciliado',
                 'tipo_conciliacion': '',
-                'doc_conciliacion': ''
+                'doc_conciliacion': '',
+                'index_original': idx_auxiliar,  # Guardar índice original
+                'tipo_registro': 'auxiliar'
             })
     
     return pd.DataFrame(resultados), extracto_conciliado_idx, auxiliar_conciliado_idx
@@ -475,7 +483,7 @@ def conciliacion_agrupacion_auxiliar(extracto_df, auxiliar_df, extracto_concilia
             docs_conciliacion = auxiliar_no_conciliado.loc[indices_combinacion, "numero_movimiento"].astype(str).tolist()
             docs_conciliacion = [str(doc) for doc in docs_conciliacion]
             
-            # Añadir a resultados
+            # Añadir a resultados - Movimiento del extracto
             resultados.append({
                 'fecha': fila_extracto["fecha"],
                 'monto': fila_extracto["monto"],
@@ -484,8 +492,26 @@ def conciliacion_agrupacion_auxiliar(extracto_df, auxiliar_df, extracto_concilia
                 'origen': 'Banco',
                 'estado': 'Conciliado',
                 'tipo_conciliacion': 'Agrupación en Libro Auxiliar',
-                'doc_conciliacion': ", ".join(docs_conciliacion)
+                'doc_conciliacion': ", ".join(docs_conciliacion),
+                'index_original': idx_extracto,
+                'tipo_registro': 'extracto'
             })
+            
+            # Añadir a resultados - Cada movimiento del libro auxiliar en la combinación
+            for idx_aux in indices_combinacion:
+                fila_aux = auxiliar_no_conciliado.loc[idx_aux]
+                resultados.append({
+                    'fecha': fila_aux["fecha"],
+                    'monto': fila_aux["monto"],
+                    'concepto': fila_aux.get("nota", ""),
+                    'numero_movimiento': fila_aux.get("numero_movimiento", ""),
+                    'origen': 'Libro Auxiliar',
+                    'estado': 'Conciliado',
+                    'tipo_conciliacion': 'Agrupación en Libro Auxiliar',
+                    'doc_conciliacion': fila_extracto.get("numero_movimiento", ""),
+                    'index_original': idx_aux,
+                    'tipo_registro': 'auxiliar'
+                })
     
     return pd.DataFrame(resultados), nuevos_extracto_conciliado, nuevos_auxiliar_conciliado
 
@@ -520,7 +546,7 @@ def conciliacion_agrupacion_extracto(extracto_df, auxiliar_df, extracto_concilia
             nums_movimiento = extracto_no_conciliado.loc[indices_combinacion, "numero_movimiento"].astype(str).tolist()
             nums_movimiento = [str(num) for num in nums_movimiento]
             
-            # Añadir a resultados
+            # Añadir a resultados - Movimiento del libro auxiliar
             resultados.append({
                 'fecha': fila_auxiliar["fecha"],
                 'monto': fila_auxiliar["monto"],
@@ -529,8 +555,26 @@ def conciliacion_agrupacion_extracto(extracto_df, auxiliar_df, extracto_concilia
                 'origen': 'Libro Auxiliar',
                 'estado': 'Conciliado',
                 'tipo_conciliacion': 'Agrupación en Extracto Bancario',
-                'doc_conciliacion': ", ".join(nums_movimiento)
+                'doc_conciliacion': ", ".join(nums_movimiento),
+                'index_original': idx_auxiliar,
+                'tipo_registro': 'auxiliar'
             })
+            
+            # Añadir a resultados - Cada movimiento del extracto en la combinación
+            for idx_ext in indices_combinacion:
+                fila_ext = extracto_no_conciliado.loc[idx_ext]
+                resultados.append({
+                    'fecha': fila_ext["fecha"],
+                    'monto': fila_ext["monto"],
+                    'concepto': fila_ext.get("concepto", ""),
+                    'numero_movimiento': fila_ext.get("numero_movimiento", ""),
+                    'origen': 'Banco',
+                    'estado': 'Conciliado',
+                    'tipo_conciliacion': 'Agrupación en Extracto Bancario',
+                    'doc_conciliacion': fila_auxiliar.get("numero_movimiento", ""),
+                    'index_original': idx_ext,
+                    'tipo_registro': 'extracto'
+                })
     
     return pd.DataFrame(resultados), nuevos_extracto_conciliado, nuevos_auxiliar_conciliado
 
@@ -561,12 +605,30 @@ def conciliar_banco_completo(extracto_df, auxiliar_df):
     )
     st.write(f"Conciliación por agrupación en extracto bancario: {len(nuevos_extracto_conc2)} movimientos del extracto y {len(nuevos_auxiliar_conc2)} movimientos del auxiliar")
     
+    # Filtrar resultados directos para eliminar los que luego fueron conciliados por agrupación
+    if not resultados_directa.empty:
+        # Eliminar los registros no conciliados que luego se conciliaron por agrupación
+        indices_a_eliminar = []
+        for idx, fila in resultados_directa.iterrows():
+            if fila['estado'] == 'No Conciliado':
+                if (fila['tipo_registro'] == 'extracto' and fila['index_original'] in nuevos_extracto_conc1.union(nuevos_extracto_conc2)) or \
+                   (fila['tipo_registro'] == 'auxiliar' and fila['index_original'] in nuevos_auxiliar_conc1.union(nuevos_auxiliar_conc2)):
+                    indices_a_eliminar.append(idx)
+        
+        # Eliminar los registros identificados
+        if indices_a_eliminar:
+            resultados_directa = resultados_directa.drop(indices_a_eliminar)
+    
     # Combinar resultados
     resultados_finales = pd.concat([
         resultados_directa,
         resultados_agrup_aux,
         resultados_agrup_ext
     ], ignore_index=True)
+    
+    # Eliminar columnas auxiliares antes de devolver los resultados finales
+    if 'index_original' in resultados_finales.columns:
+        resultados_finales = resultados_finales.drop(['index_original', 'tipo_registro'], axis=1)
     
     return resultados_finales
 
