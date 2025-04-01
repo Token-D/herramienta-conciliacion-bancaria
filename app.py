@@ -399,7 +399,7 @@ def conciliacion_directa(extracto_df, auxiliar_df):
                 'origen': 'Banco',
                 'estado': 'Conciliado',
                 'tipo_conciliacion': 'Directa',
-                'doc_conciliacion': fila_auxiliar.get('doc. num', '')
+                'doc_conciliacion': fila_auxiliar.get('numero_movimiento', '')
             })
     
     # Registros no conciliados del extracto bancario
@@ -427,7 +427,7 @@ def conciliacion_directa(extracto_df, auxiliar_df):
                 'origen': 'Libro Auxiliar',
                 'estado': 'No Conciliado',
                 'tipo_conciliacion': '',
-                'doc_conciliacion': fila_auxiliar.get("doc. num", "")
+                'doc_conciliacion': fila_auxiliar.get("numero_movimiento", "")
             })
     
     return pd.DataFrame(resultados), extracto_conciliado_idx, auxiliar_conciliado_idx
@@ -460,7 +460,7 @@ def conciliacion_agrupacion_auxiliar(extracto_df, auxiliar_df, extracto_concilia
             nuevos_auxiliar_conciliado.update(indices_combinacion)
             
             # Obtener números de documento
-            docs_conciliacion = auxiliar_no_conciliado.loc[indices_combinacion, "doc. num"].astype(str).tolist()
+            docs_conciliacion = auxiliar_no_conciliado.loc[indices_combinacion, "numero_movimiento"].astype(str).tolist()
             docs_conciliacion = [str(doc) for doc in docs_conciliacion]
             
             # Añadir a resultados
@@ -517,7 +517,7 @@ def conciliacion_agrupacion_extracto(extracto_df, auxiliar_df, extracto_concilia
                 'origen': 'Libro Auxiliar',
                 'estado': 'Conciliado',
                 'tipo_conciliacion': 'Agrupación en Extracto Bancario',
-                'doc_conciliacion': fila_auxiliar.get("doc. num", "")
+                'doc_conciliacion': fila_auxiliar.get("numero_movimiento", "")
             })
     
     return pd.DataFrame(resultados), nuevos_extracto_conciliado, nuevos_auxiliar_conciliado
@@ -587,7 +587,7 @@ if extracto_file and auxiliar_file:
             "debitos": ["debitos", "débitos", "debe", "cargo", "cargos", "valor débito"],
             "creditos": ["creditos", "créditos", "haber", "abono", "abonos", "valor crédito"],
             "nota": ["nota", "nota libro auxiliar", "descripción", "observaciones", "descripcion"],
-            "doc. num": ["doc num", "doc. num", "documento", "número documento", "numero documento", "nro. documento"]
+            "numero_movimiento": ["doc num", "doc. num", "documento", "número documento", "numero documento", "nro. documento"]
         }
 
         # Leer los datos a partir de la fila de encabezados
