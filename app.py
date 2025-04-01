@@ -127,6 +127,8 @@ def asegurar_montos_numericos(df):
         try:
             # Convertir a numérico
             df['monto'] = pd.to_numeric(df['monto'], errors='coerce')
+            # Eliminar filas con montos inválidos
+            df = df.dropna(subset=['monto'])
             st.success(f"Columna 'monto' convertida a numérico. Tipo de dato: {df['monto'].dtype}")
         except Exception as e:
             st.error(f"Error al convertir montos a numérico: {e}")
@@ -472,7 +474,7 @@ if extracto_file and auxiliar_file:
         
         # Estandarizar las fechas en ambos DataFrames
         extracto_df = estandarizar_fechas(extracto_df)
-        auxiliar_df = estandarizar_fechas(auxiliar_df)        
+        auxiliar_df = estandarizar_fechas(auxiliar_df)
         
         # Mostrar información sobre los tipos de datos
         st.write("Tipo de dato en columna fecha (Extracto):", extracto_df['fecha'].dtype)
