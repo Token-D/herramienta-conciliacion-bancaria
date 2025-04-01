@@ -7,41 +7,26 @@ from itertools import combinations
 def buscar_fila_encabezados(df, columnas_esperadas, max_filas=25):
     """
     Busca la fila que contiene los nombres de las columnas esperadas.
-
-    Args:
-        df (DataFrame): El DataFrame del archivo de Excel.
-        columnas_esperadas (dict): Un diccionario con los nombres esperados y sus posibles variantes.
-        max_filas (int): El número máximo de filas para buscar los encabezados.
-
-    Returns:
-        int: El índice de la fila que contiene los encabezados.
     """
     # Convertir las variantes de los encabezados a minúsculas
     columnas_esperadas_lower = {col: [variante.lower() for variante in variantes] for col, variantes in columnas_esperadas.items()}
 
-    for idx in range(min(max_filas, len(df))):  # Limitar a max_filas o el número de filas en el DataFrame
-        fila = df.iloc[idx]  # Obtener la fila actual
-        celdas = [str(valor).lower() for valor in fila if pd.notna(valor)]  # Filtrar celdas no vacías y convertir a minúsculas
+    for idx in range(min(max_filas, len(df))):
+        fila = df.iloc[idx]
+        celdas = [str(valor).lower() for valor in fila if pd.notna(valor)]
 
         # Variables para verificar coincidencias
-        encontrado_fecha = False
-        encontrado_monto = False
+        encontrados = {col: False for col in columnas_esperadas.keys()}
 
         # Revisar cada celda en la fila
         for celda in celdas:
             for col, variantes in columnas_esperadas_lower.items():
                 if any(variante in celda for variante in variantes):
-                    if col == 'fecha':
-                        encontrado_fecha = True
-                    elif col == 'monto':
-                        encontrado_monto = True
+                    encontrados[col] = True
 
-        # Si se encuentran ambos encabezados en la misma fila
-        if encontrado_fecha and encontrado_monto:
-            st.write(f"Encabezados encontrados en la fila {idx + 1}: {fila.tolist()}")  # Mensaje de depuración
+        # Si se encuentran todos los encabezados necesarios en la misma fila
+        if all(encontrados.values()):
             return idx
-
-        st.write(f"Fila {idx + 1} no coincide: {fila.tolist()}")  # Mensaje de depuración
 
     return None
 
@@ -49,22 +34,9 @@ def buscar_fila_encabezados(df, columnas_esperadas, max_filas=25):
 def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, max_filas=50):
     """
     Lee los datos de un archivo de Excel a partir de la fila que contiene los encabezados.
-
-    Args:
-        archivo (UploadedFile): El archivo de Excel cargado en Streamlit.
-        columnas_esperadas (dict): Un diccionario con los nombres esperados y sus posibles variantes.
-        nombre_archivo (str): El nombre del archivo (para mensajes de error).
-        max_filas (int): El número máximo de filas para buscar los encabezados.
-
-    Returns:
-        DataFrame: El DataFrame con los datos correctamente cargados.
     """
     # Leer el archivo de Excel sin asumir que los encabezados están en la primera fila
     df = pd.read_excel(archivo, header=None)
-
-    # Mostrar las primeras filas del archivo para depuración
-    st.write(f"Vista previa de las primeras {max_filas} filas del archivo {nombre_archivo}:")
-    st.write(df.head(max_filas))
 
     # Buscar la fila de encabezados
     fila_encabezados = buscar_fila_encabezados(df, columnas_esperadas, max_filas)
@@ -78,9 +50,8 @@ def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, ma
     # Leer los datos a partir de la fila de encabezados
     df = pd.read_excel(archivo, header=fila_encabezados)
     
-
-    ## Normalizar las columnas
-    df = normalizar_dataframe(df, columnas_esperadas_extracto)
+    # Normalizar las columnas
+    df = normalizar_dataframe(df, columnas_esperadas)
 
     # Verificar si el DataFrame tiene las columnas esperadas
     for col in columnas_esperadas.keys():
@@ -90,45 +61,10 @@ def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, ma
     
     return df
 
-    st.write("Datos leídos correctamente:")
-    st.write(df.head())  # Muestra las primeras filas del DataFrame leído
-
-# Función para identificar columnas
-def identificar_columnas(df, columnas_esperadas, nombre_archivo):
-    """
-    Identifica las columnas necesarias en un DataFrame basándose en coincidencias parciales.
-
-    Args:
-        df (DataFrame): El DataFrame del archivo de Excel.
-        columnas_esperadas (dict): Un diccionario con los nombres esperados y sus posibles variantes.
-        nombre_archivo (str): El nombre del archivo (para mensajes de error).
-
-    Returns:
-        dict: Un diccionario con las columnas identificadas.
-    """
-    columnas_identificadas = {}
-    for col_esperada, variantes in columnas_esperadas.items():
-        for col in df.columns:
-            if any(variante.lower() in str(col).lower() for variante in variantes):
-                columnas_identificadas[col_esperada] = col
-                break
-        else:
-            st.error(f"No se encontró una columna que coincida con: {', '.join(variantes)} en el archivo {nombre_archivo}.")
-            st.error(f"Columnas encontradas en el archivo: {', '.join(df.columns)}")
-            st.stop()
-    return columnas_identificadas
-
 # Función para normalizar un DataFrame
 def normalizar_dataframe(df, columnas_esperadas):
     """
     Normaliza un DataFrame para que use los nombres de columnas esperados.
-
-    Args:
-        df (DataFrame): El DataFrame original.
-        columnas_esperadas (dict): Un diccionario con los nombres esperados y sus posibles variantes.
-
-    Returns:
-        DataFrame: El DataFrame normalizado.
     """
     # Convertir los nombres de las columnas del DataFrame a minúsculas
     df.columns = [str(col).lower().strip() for col in df.columns]
@@ -139,9 +75,6 @@ def normalizar_dataframe(df, columnas_esperadas):
         for variante in variantes:
             variante_lower = variante.lower().strip()
             mapeo_columnas[variante_lower] = col_esperada
-    
-    # Mostrar el mapeo de columnas para depuración
-    st.write("Mapeo de columnas:", mapeo_columnas)
     
     # Renombrar las columnas según el mapeo
     nuevo_nombres = []
@@ -166,14 +99,11 @@ def normalizar_dataframe(df, columnas_esperadas):
     # Eliminar columnas duplicadas después de renombrar
     df = df.loc[:, ~df.columns.duplicated(keep='first')]
     
-    # Mostrar el DataFrame después de renombrar las columnas para depuración
-    st.write("DataFrame después de renombrar columnas:")
-    st.write(df.head())
-    
     # Opcional: Eliminar columnas no necesarias
     columnas_a_mantener = list(columnas_esperadas.keys())
     columnas_a_eliminar = [col for col in df.columns if col not in columnas_a_mantener]
-    df.drop(columns=columnas_a_eliminar, inplace=True, errors='ignore')
+    if columnas_a_eliminar:
+        df.drop(columns=columnas_a_eliminar, inplace=True, errors='ignore')
     
     return df
 
@@ -223,13 +153,13 @@ def conciliar_banco_excel(extracto_df, auxiliar_df):
         lambda row: "Conciliado" if pd.notna(row["concepto"]) and pd.notna(row["nota"]) else "No Conciliado", axis=1
     )
     resultados_directa["doc. conciliación"] = resultados_directa.apply(
-        lambda row: row["doc. num_auxiliar"] if pd.notna(row["concepto"]) and pd.notna(row["nota"]) else row["doc. num_banco"] if pd.notna(row["concepto"]) else None, axis=1
+        lambda row: row["doc. num"] if pd.notna(row["concepto"]) and pd.notna(row["nota"]) else None, axis=1
     )
     resultados_df = pd.concat([resultados_df, resultados_directa], ignore_index=True)
 
     # 2. Conciliación por Agrupación en el Libro Auxiliar
     extracto_no_conciliado = resultados_df[resultados_df["estado"] == "No Conciliado"]
-    auxiliar_no_conciliado = auxiliar_df[~auxiliar_df["doc. num"].isin(resultados_df["doc. num_auxiliar"])]
+    auxiliar_no_conciliado = auxiliar_df[~auxiliar_df["doc. num"].isin(resultados_df["doc. num"])]
     resultados_agrupacion_libro = conciliacion_agrupacion_libro_auxiliar(extracto_no_conciliado, auxiliar_no_conciliado)
     resultados_df = pd.concat([resultados_df, resultados_agrupacion_libro], ignore_index=True)
 
@@ -254,20 +184,19 @@ if extracto_file and auxiliar_file:
 
         columnas_esperadas_auxiliar = {
             "fecha": ["fecha", "date", "fecha de operación", "fecha_operacion"],
-            "monto": ["monto", "importe", "valor", "amount"],
-            "nota": ["nota", "nota libro auxiliar", "descripción", "observaciones"]
+            "monto": ["debitos", "creditos", "monto", "importe", "valor", "amount"],
+            "nota": ["nota", "nota libro auxiliar", "descripción", "observaciones"],
+            "doc. num": ["doc num", "doc. num", "documento", "número documento", "numero documento"]
         }
 
         # Leer los datos a partir de la fila de encabezados
         extracto_df = leer_datos_desde_encabezados(extracto_file, columnas_esperadas_extracto, "Extracto Bancario", max_filas=50)
         auxiliar_df = leer_datos_desde_encabezados(auxiliar_file, columnas_esperadas_auxiliar, "Libro Auxiliar", max_filas=50)
 
-        # Identificar y normalizar las columnas
-        columnas_extracto = identificar_columnas(extracto_df, columnas_esperadas_extracto, "Extracto Bancario")
-        columnas_auxiliar = identificar_columnas(auxiliar_df, columnas_esperadas_auxiliar, "Libro Auxiliar")
-
-        extracto_df = normalizar_dataframe(extracto_df, columnas_extracto)
-        auxiliar_df = normalizar_dataframe(auxiliar_df, columnas_auxiliar)
+        # Procesar datos del libro auxiliar para combinar débitos y créditos en una sola columna de monto
+        if "debitos" in auxiliar_df.columns and "creditos" in auxiliar_df.columns:
+            auxiliar_df["monto"] = auxiliar_df["debitos"].fillna(0) - auxiliar_df["creditos"].fillna(0)
+            auxiliar_df.drop(columns=["debitos", "creditos"], inplace=True, errors='ignore')
 
         # Realizar conciliación
         resultados_df = conciliar_banco_excel(extracto_df, auxiliar_df)
