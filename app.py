@@ -37,6 +37,11 @@ def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, ma
     """
     # Leer el archivo de Excel sin asumir que los encabezados están en la primera fila
     df = pd.read_excel(archivo, header=None)
+    st.write(f"Total de filas leídas inicialmente en {nombre_archivo}: {len(df)}")
+    st.write("Primeras 5 filas del archivo crudo:")
+    st.write(df.head(5))  # Muestra las primeras filas para inspeccionar
+    st.write("Últimas 5 filas del archivo crudo:")
+    st.write(df.tail(5))  # Muestra las últimas filas para verificar hasta dónde llega
 
     # Buscar la fila de encabezados
     fila_encabezados = buscar_fila_encabezados(df, columnas_esperadas, max_filas)
