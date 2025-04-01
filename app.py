@@ -165,10 +165,7 @@ def procesar_montos_auxiliar(df):
                 df["monto"] -= df[col]
             except Exception as e:
                 st.warning(f"Error al procesar la columna de crédito '{col}': {e}")
-            
-        # Para verificar, mostrar algunos valores
-        st.write("Primeros 5 montos calculados:", df["monto"].head(5).tolist())
-        
+                    
         # Eliminar columnas originales de débito y crédito si se desea
         # df.drop(columns=cols_debito + cols_credito, inplace=True, errors='ignore')
     else:
@@ -454,10 +451,6 @@ if extracto_file and auxiliar_file:
         extracto_df = estandarizar_fechas(extracto_df)
         auxiliar_df = estandarizar_fechas(auxiliar_df)
         
-        # Mostrar información sobre los tipos de datos
-        st.write("Tipo de dato en columna fecha (Extracto):", extracto_df['fecha'].dtype)
-        st.write("Tipo de dato en columna fecha (Auxiliar):", auxiliar_df['fecha'].dtype)
-
         # Mostrar resúmenes de los datos cargados
         st.subheader("Resumen de datos cargados")
         st.write(f"Extracto bancario: {len(extracto_df)} movimientos")
