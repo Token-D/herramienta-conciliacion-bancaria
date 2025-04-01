@@ -125,16 +125,10 @@ def procesar_montos_auxiliar(df):
     # Verificar si existen las columnas debitos y creditos
     columnas = df.columns.str.lower()
     
-    # Mostrar información de diagnóstico
-    st.write("Columnas del libro auxiliar:", ", ".join(columnas))
-    
     # Buscar columnas de débitos
     cols_debito = [col for col in columnas if "deb" in col or "debe" in col or "cargo" in col]
     # Buscar columnas de créditos
     cols_credito = [col for col in columnas if "cred" in col or "haber" in col or "abono" in col]
-    
-    st.write(f"Columnas de débito encontradas: {cols_debito}")
-    st.write(f"Columnas de crédito encontradas: {cols_credito}")
     
     # Si ya existe una columna de monto, verificar si tiene valores válidos
     if "monto" in columnas:
