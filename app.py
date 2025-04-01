@@ -59,6 +59,18 @@ def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, ma
         if col not in df.columns:
             st.error(f"La columna esperada '{col}' no se encontró en los datos leídos del archivo '{nombre_archivo}'.")
             st.stop()
+
+    # Filtrar filas donde 'doc. num' no esté vacío
+    if 'doc. num' in df.columns:
+        filas_antes = len(df)
+        # Eliminar filas donde 'doc. num' sea NaN, None o cadena vacía
+        df = df[df['doc. num'].notna() & (df['doc. num'] != '')]
+        filas_despues = len(df)
+        st.write(f"Filas después de eliminar las que tienen 'doc. num' vacío en {nombre_archivo}: {filas_despues}")
+        if filas_antes > filas_despues:
+            st.info(f"Se eliminaron {filas_antes - filas_despues} filas con 'doc. num' vacío.")
+    else:
+        st.warning(f"La columna 'doc. num' no se encontró en {nombre_archivo} después de normalizar. No se aplicó filtro.")
     
     return df
 
