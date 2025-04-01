@@ -130,27 +130,49 @@ def normalizar_dataframe(df, columnas_esperadas):
     Returns:
         DataFrame: El DataFrame normalizado.
     """
-    # Convertir los nombres de las columnas del DataFrame a minúsculas y eliminar espacios
-    df.columns = [col.lower().strip() for col in df.columns]
-
-    # Eliminar columnas duplicadas
-    df = df.loc[:, ~df.columns.duplicated()]
-
+    # Convertir los nombres de las columnas del DataFrame a minúsculas
+    df.columns = [str(col).lower().strip() for col in df.columns]
+    
     # Crear un mapeo de nombres de columnas basado en las variantes
-    mapeo_columnas = {variante.lower().strip(): col for col, variantes in columnas_esperadas.items() for variante in variantes}
-
+    mapeo_columnas = {}
+    for col_esperada, variantes in columnas_esperadas.items():
+        for variante in variantes:
+            variante_lower = variante.lower().strip()
+            mapeo_columnas[variante_lower] = col_esperada
+    
     # Mostrar el mapeo de columnas para depuración
     st.write("Mapeo de columnas:", mapeo_columnas)
-
+    
     # Renombrar las columnas según el mapeo
-    df.rename(columns=mapeo_columnas, inplace=True)
-
+    nuevo_nombres = []
+    columnas_vistas = set()
+    
+    for col in df.columns:
+        if col in mapeo_columnas:
+            nuevo_nombre = mapeo_columnas[col]
+            # Si ya hemos asignado este nombre antes, añadir un sufijo único
+            if nuevo_nombre in columnas_vistas:
+                # No renombrar esta columna, la eliminaremos después
+                nuevo_nombres.append(col)
+            else:
+                nuevo_nombres.append(nuevo_nombre)
+                columnas_vistas.add(nuevo_nombre)
+        else:
+            nuevo_nombres.append(col)
+    
+    # Asignar los nuevos nombres de columnas
+    df.columns = nuevo_nombres
+    
+    # Eliminar columnas duplicadas después de renombrar
+    df = df.loc[:, ~df.columns.duplicated(keep='first')]
+    
     # Mostrar el DataFrame después de renombrar las columnas para depuración
     st.write("DataFrame después de renombrar columnas:")
-    st.write(df.head())  # Muestra las primeras filas del DataFrame leído
+    st.write(df.head())
     
     # Opcional: Eliminar columnas no necesarias
-    columnas_a_eliminar = [col for col in df.columns if col not in columnas_esperadas.keys()]
+    columnas_a_mantener = list(columnas_esperadas.keys())
+    columnas_a_eliminar = [col for col in df.columns if col not in columnas_a_mantener]
     df.drop(columns=columnas_a_eliminar, inplace=True, errors='ignore')
     
     return df
