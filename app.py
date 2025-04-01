@@ -104,35 +104,141 @@ def normalizar_dataframe(df, columnas_esperadas):
     return df
 
 # Función para estandarizar el formato de fechas
-def estandarizar_fechas(df):
+def estandarizar_fechas(df, mes_conciliacion):
     """
-    Convierte la columna 'fecha' a formato datetime64 y muestra información de depuración.
+    Convierte la columna 'fecha' a formato datetime64, considerando el mes de conciliación.
     """
     if 'fecha' in df.columns:
         try:
-            # Mostrar información antes de la conversión
-            st.write(f"Fechas antes de conversión (primeras 5):")
-            st.write(df['fecha'].head(5))
+            # Convertir a string primero para manipular
+            df['fecha_original'] = df['fecha'].copy()
+            df['fecha_str'] = df['fecha'].astype(str)
             
-            # Convertir a datetime
-            df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce', dayfirst=False)
+            # Buscar patrones comunes de fecha en la columna
+            fechas_detectadas = []
+            for fecha_str in df['fecha_str'].dropna().unique()[:10]:  # Analizar primeras 10 fechas únicas
+                if '-' in fecha_str:
+                    partes = fecha_str.split('T')[0].split('-')
+                    if len(partes) == 3:
+                        fechas_detectadas.append(partes)
             
-            # Mostrar información después de la conversión
-            st.write(f"Fechas después de conversión (primeras 5):")
-            st.write(df['fecha'].head(5))
+            # Determinar si las fechas parecen estar en formato YYYY-MM-DD o YYYY-DD-MM
+            formato_detectado = "desconocido"
+            if fechas_detectadas:
+                # Si el segundo número (posible mes) coincide mayormente con el mes seleccionado
+                coincidencias_mes_en_pos1 = sum(1 for partes in fechas_detectadas if int(partes[1]) == mes_conciliacion)
+                coincidencias_mes_en_pos2 = sum(1 for partes in fechas_detectadas if int(partes[2]) == mes_conciliacion)
+                
+                if coincidencias_mes_en_pos1 > coincidencias_mes_en_pos2:
+                    formato_detectado = "YYYY-MM-DD"
+                else:
+                    formato_detectado = "YYYY-DD-MM"
+                
+                st.info(f"Formato de fecha detectado: {formato_detectado}")
             
-            # Contar valores nulos
-            nulos = df['fecha'].isna().sum()
-            st.write(f"Filas con fechas nulas: {nulos}")
+            # Convertir a datetime según el formato detectado
+            if formato_detectado == "YYYY-MM-DD":
+                df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce', format='%Y-%m-%d')
+            elif formato_detectado == "YYYY-DD-MM":
+                # Para fechas en formato YYYY-DD-MM, intercambiamos día y mes
+                df['fecha'] = pd.to_datetime(df['fecha_str'].str.replace(r'(\d{4})-(\d{2})-(\d{2})', r'\1-\3-\2', regex=True), 
+                                            errors='coerce', format='%Y-%m-%d')
+            else:
+                # Intentar ambos formatos
+                df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce')
             
-            # Si hay nulos, no los elimines automáticamente
-            if nulos > 0:
-                st.warning(f"Hay {nulos} filas con fechas inválidas. Revisar el formato de fechas.")
-                # Puedes comentar la siguiente línea para no eliminar las filas con fechas nulas
-                # df = df.dropna(subset=['fecha'])
+            # Filtrar por mes de conciliación
+            df = df[df['fecha'].dt.month == mes_conciliacion]
+            
+            # Mostrar estadísticas
+            st.write(f"Registros para el mes {meses[mes_conciliacion-1]}: {len(df)}")
             
         except Exception as e:
             st.warning(f"Error al convertir fechas: {e}")
+    return df
+def detectar_formato_fecha(df):
+    """
+    Analiza la columna 'fecha' para detectar el formato más probable.
+    """
+    if 'fecha' not in df.columns:
+        return "desconocido"
+    
+    # Convertir fechas a texto para análisis
+    fechas_str = df['fecha'].astype(str).dropna().tolist()
+    
+    # Contadores para diferentes formatos
+    formatos = {
+        "YYYY-MM-DD": 0,
+        "YYYY-DD-MM": 0,
+        "DD-MM-YYYY": 0,
+        "MM-DD-YYYY": 0
+    }
+    
+    for fecha_str in fechas_str:
+        # Limpiar la fecha (quitar hora si existe)
+        if 'T' in fecha_str:
+            fecha_str = fecha_str.split('T')[0]
+        
+        # Para formatos con guiones
+        if '-' in fecha_str:
+            partes = fecha_str.split('-')
+            if len(partes) == 3:
+                # Verificar formato YYYY-MM-DD o YYYY-DD-MM
+                if len(partes[0]) == 4:  # Primer parte es año
+                    if 1 <= int(partes[1]) <= 12:  # Segunda parte es mes
+                        formatos["YYYY-MM-DD"] += 1
+                    elif 1 <= int(partes[2]) <= 12:  # Tercera parte es mes
+                        formatos["YYYY-DD-MM"] += 1
+                # Verificar formato DD-MM-YYYY o MM-DD-YYYY
+                elif len(partes[2]) == 4:  # Última parte es año
+                    if 1 <= int(partes[1]) <= 12:  # Segunda parte es mes
+                        formatos["DD-MM-YYYY"] += 1
+                    elif 1 <= int(partes[0]) <= 12:  # Primera parte es mes
+                        formatos["MM-DD-YYYY"] += 1
+    
+    # Determinar el formato más común
+    formato_mas_comun = max(formatos.items(), key=lambda x: x[1])
+    
+    if formato_mas_comun[1] > 0:
+        return formato_mas_comun[0]
+    else:
+        return "desconocido"
+
+def estandarizar_fechas_automatico(df, nombre_archivo):
+    """
+    Estandariza fechas detectando automáticamente el formato.
+    """
+    if 'fecha' in df.columns:
+        try:
+            # Guardar fechas originales
+            df['fecha_original'] = df['fecha'].copy()
+            
+            # Detectar formato
+            formato = detectar_formato_fecha(df)
+            st.info(f"Formato de fecha detectado en {nombre_archivo}: {formato}")
+            
+            # Convertir según formato
+            if formato == "YYYY-MM-DD":
+                df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce', format='%Y-%m-%d')
+            elif formato == "YYYY-DD-MM":
+                df['fecha'] = pd.to_datetime(df['fecha'].astype(str).str.replace(r'(\d{4})-(\d{2})-(\d{2})', r'\1-\3-\2', regex=True), 
+                                            errors='coerce')
+            elif formato == "DD-MM-YYYY":
+                df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce', format='%d-%m-%Y')
+            elif formato == "MM-DD-YYYY":
+                df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce', format='%m-%d-%Y')
+            else:
+                # Intentar inferir el formato
+                df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce')
+            
+            # Contar valores nulos
+            nulos = df['fecha'].isna().sum()
+            if nulos > 0:
+                st.warning(f"{nulos} fechas no pudieron ser convertidas en {nombre_archivo}.")
+            
+        except Exception as e:
+            st.warning(f"Error al convertir fechas en {nombre_archivo}: {e}")
+    
     return df
 
 # Función para procesar los montos del libro auxiliar
@@ -244,42 +350,41 @@ def encontrar_combinaciones(df, monto_objetivo, tolerancia=0.01, max_combinacion
 def conciliacion_directa(extracto_df, auxiliar_df):
     """
     Realiza la conciliación directa entre el extracto bancario y el libro auxiliar.
-    Busca coincidencias considerando solo la fecha (sin hora) y monto.
+    Busca coincidencias en fecha (solo día, mes, año) y monto.
     """
     resultados = []
     extracto_conciliado_idx = set()
     auxiliar_conciliado_idx = set()
     
-    # Mostrar información de depuración
-    st.write("Primeras 5 fechas del extracto:")
-    st.write(extracto_df['fecha'].head(5))
-    st.write("Primeras 5 fechas del auxiliar:")
-    st.write(auxiliar_df['fecha'].head(5))
+    # Crear versiones de las fechas sin hora para comparación
+    extracto_df['fecha_solo'] = extracto_df['fecha'].dt.date
+    auxiliar_df['fecha_solo'] = auxiliar_df['fecha'].dt.date
+    
+    # Diagnóstico de fechas
+    st.subheader("Diagnóstico de fechas")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.write("Fechas en extracto (primeras 5):")
+        st.write(extracto_df[['fecha', 'fecha_solo']].head())
+    with col2:
+        st.write("Fechas en auxiliar (primeras 5):")
+        st.write(auxiliar_df[['fecha', 'fecha_solo']].head())
     
     # Para cada fila en el extracto
     for idx_extracto, fila_extracto in extracto_df.iterrows():
-        fecha_extracto = fila_extracto["fecha"].date() if pd.notna(fila_extracto["fecha"]) else None
-        monto_extracto = fila_extracto["monto"]
-        
-        if fecha_extracto is None:
+        # Buscar coincidencias en el libro auxiliar usando fecha_solo
+        if pd.isna(fila_extracto['fecha_solo']):
             continue
             
-        # Buscar coincidencias en el libro auxiliar
-        coincidencias = []
-        for idx_auxiliar, fila_auxiliar in auxiliar_df.iterrows():
-            fecha_auxiliar = fila_auxiliar["fecha"].date() if pd.notna(fila_auxiliar["fecha"]) else None
-            monto_auxiliar = fila_auxiliar["monto"]
-            
-            if fecha_auxiliar is None:
-                continue
-                
-            # Comprobar si las fechas son iguales (solo día, mes, año) y los montos coinciden
-            if fecha_auxiliar == fecha_extracto and abs(monto_auxiliar - monto_extracto) < 0.01:
-                coincidencias.append((idx_auxiliar, fila_auxiliar))
+        coincidencias = auxiliar_df[
+            (auxiliar_df['fecha_solo'] == fila_extracto['fecha_solo']) & 
+            (abs(auxiliar_df['monto'] - fila_extracto['monto']) < 0.01)
+        ]
         
-        if coincidencias:
+        if not coincidencias.empty:
             # Tomar la primera coincidencia
-            idx_auxiliar, fila_auxiliar = coincidencias[0]
+            idx_auxiliar = coincidencias.index[0]
+            fila_auxiliar = coincidencias.iloc[0]
             
             # Marcar como conciliados
             extracto_conciliado_idx.add(idx_extracto)
@@ -287,14 +392,14 @@ def conciliacion_directa(extracto_df, auxiliar_df):
             
             # Añadir a resultados
             resultados.append({
-                'fecha': fila_extracto["fecha"],
-                'monto': fila_extracto["monto"],
-                'concepto': fila_extracto.get("concepto", ""),
-                'numero_movimiento': fila_extracto.get("numero_movimiento", ""),
+                'fecha': fila_extracto['fecha'],
+                'monto': fila_extracto['monto'],
+                'concepto': fila_extracto.get('concepto', ''),
+                'numero_movimiento': fila_extracto.get('numero_movimiento', ''),
                 'origen': 'Banco',
                 'estado': 'Conciliado',
                 'tipo_conciliacion': 'Directa',
-                'doc_conciliacion': fila_auxiliar.get("doc. num", "")
+                'doc_conciliacion': fila_auxiliar.get('doc. num', '')
             })
     
     # Registros no conciliados del extracto bancario
@@ -455,6 +560,13 @@ def conciliar_banco_completo(extracto_df, auxiliar_df):
 
 # Interfaz de Streamlit
 st.title("Herramienta de Conciliación Bancaria Automática")
+
+# Configuración del mes a conciliar
+st.subheader("Configuración")
+meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
+mes_seleccionado = st.selectbox("Mes a conciliar:", meses)
+num_mes = meses.index(mes_seleccionado) + 1  # 1 para enero, 2 para febrero, etc.
+detectar_formato_auto = st.checkbox("Detectar formato de fecha automáticamente", value=True)
 
 # Cargar archivos Excel
 extracto_file = st.file_uploader("Subir Extracto Bancario (Excel)", type=["xlsx"])
