@@ -401,6 +401,17 @@ def conciliacion_directa(extracto_df, auxiliar_df):
                 'tipo_conciliacion': 'Directa',
                 'doc_conciliacion': fila_auxiliar.get('numero_movimiento', '')
             })
+
+            resultados.append({
+                'fecha': fila_auxiliar['fecha'],
+                'monto': fila_auxiliar['monto'],
+                'concepto': fila_auxiliar.get('nota', ''),
+                'numero_movimiento': fila_auxiliar.get('numero_movimiento', ''),
+                'origen': 'Libro Auxiliar',
+                'estado': 'Conciliado',
+                'tipo_conciliacion': 'Directa',
+                'doc_conciliacion': fila_extracto.get('numero_movimiento', '')
+            })
     
     # Registros no conciliados del extracto bancario
     for idx_extracto, fila_extracto in extracto_df.iterrows():
