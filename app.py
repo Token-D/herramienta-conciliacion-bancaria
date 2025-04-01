@@ -359,7 +359,6 @@ def conciliacion_agrupacion_auxiliar(extracto_df, auxiliar_df, extracto_concilia
     
     return pd.DataFrame(resultados), nuevos_extracto_conciliado, nuevos_auxiliar_conciliado
 
-# Función para la conciliación por agrupación en el extracto bancario
 def conciliacion_agrupacion_extracto(extracto_df, auxiliar_df, extracto_conciliado_idx, auxiliar_conciliado_idx):
     """
     Busca grupos de valores en el extracto que sumen el monto de un movimiento en el libro auxiliar.
