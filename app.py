@@ -117,22 +117,6 @@ def estandarizar_fechas(df):
             st.warning(f"Error al convertir fechas: {e}")
     return df
 
-# Función para asegurar que los montos sean numéricos
-def asegurar_montos_numericos(df):
-    """
-    Convierte la columna 'monto' a tipo numérico.
-    """
-    if 'monto' in df.columns:
-        try:
-            # Convertir a numérico
-            df['monto'] = pd.to_numeric(df['monto'], errors='coerce')
-            # Eliminar filas con montos inválidos
-            df = df.dropna(subset=['monto'])
-            st.success(f"Columna 'monto' convertida a numérico. Tipo de dato: {df['monto'].dtype}")
-        except Exception as e:
-            st.error(f"Error al convertir montos a numérico: {e}")
-    return df
-
 # Función para procesar los montos del libro auxiliar
 def procesar_montos_auxiliar(df):
     """
@@ -359,6 +343,7 @@ def conciliacion_agrupacion_auxiliar(extracto_df, auxiliar_df, extracto_concilia
     
     return pd.DataFrame(resultados), nuevos_extracto_conciliado, nuevos_auxiliar_conciliado
 
+# Función para la conciliación por agrupación en el extracto bancario
 def conciliacion_agrupacion_extracto(extracto_df, auxiliar_df, extracto_conciliado_idx, auxiliar_conciliado_idx):
     """
     Busca grupos de valores en el extracto que sumen el monto de un movimiento en el libro auxiliar.
@@ -475,15 +460,9 @@ if extracto_file and auxiliar_file:
         extracto_df = estandarizar_fechas(extracto_df)
         auxiliar_df = estandarizar_fechas(auxiliar_df)
         
-        # Asegurar que los montos sean numéricos (nueva función)
-        extracto_df = asegurar_montos_numericos(extracto_df)
-        auxiliar_df = asegurar_montos_numericos(auxiliar_df)
-        
         # Mostrar información sobre los tipos de datos
         st.write("Tipo de dato en columna fecha (Extracto):", extracto_df['fecha'].dtype)
         st.write("Tipo de dato en columna fecha (Auxiliar):", auxiliar_df['fecha'].dtype)
-        st.write("Tipo de dato en columna monto (Extracto):", extracto_df['monto'].dtype)
-        st.write("Tipo de dato en columna monto (Auxiliar):", auxiliar_df['monto'].dtype)
 
         # Mostrar resúmenes de los datos cargados
         st.subheader("Resumen de datos cargados")
