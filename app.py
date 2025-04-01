@@ -517,7 +517,7 @@ def conciliacion_agrupacion_extracto(extracto_df, auxiliar_df, extracto_concilia
                 'origen': 'Libro Auxiliar',
                 'estado': 'Conciliado',
                 'tipo_conciliacion': 'Agrupación en Extracto Bancario',
-                'doc_conciliacion': fila_extracto.get("numero_movimiento", "")
+                'doc_conciliacion': ", ".join(nums_movimiento)
             })
     
     return pd.DataFrame(resultados), nuevos_extracto_conciliado, nuevos_auxiliar_conciliado
