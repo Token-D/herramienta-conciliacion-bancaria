@@ -81,16 +81,17 @@ def normalizar_dataframe(df, columnas_esperadas):
     columnas_vistas = set()
     
     for col in df.columns:
-        if col in mapeo_columnas:
-            nuevo_nombre = mapeo_columnas[col]
-            # Si ya hemos asignado este nombre antes, añadir un sufijo único
-            if nuevo_nombre in columnas_vistas:
-                # No renombrar esta columna, la eliminaremos después
-                nuevo_nombres.append(col)
-            else:
-                nuevo_nombres.append(nuevo_nombre)
-                columnas_vistas.add(nuevo_nombre)
-        else:
+        # Verificar coincidencias aproximadas
+        col_encontrada = False
+        for variante, nombre_esperado in mapeo_columnas.items():
+            if variante in col:
+                if nombre_esperado not in columnas_vistas:
+                    nuevo_nombres.append(nombre_esperado)
+                    columnas_vistas.add(nombre_esperado)
+                    col_encontrada = True
+                    break
+        
+        if not col_encontrada:
             nuevo_nombres.append(col)
     
     # Asignar los nuevos nombres de columnas
@@ -98,12 +99,6 @@ def normalizar_dataframe(df, columnas_esperadas):
     
     # Eliminar columnas duplicadas después de renombrar
     df = df.loc[:, ~df.columns.duplicated(keep='first')]
-    
-    # Opcional: Eliminar columnas no necesarias
-    columnas_a_mantener = list(columnas_esperadas.keys())
-    columnas_a_eliminar = [col for col in df.columns if col not in columnas_a_mantener]
-    if columnas_a_eliminar:
-        df.drop(columns=columnas_a_eliminar, inplace=True, errors='ignore')
     
     return df
 
@@ -122,109 +117,271 @@ def estandarizar_fechas(df):
             st.warning(f"Error al convertir fechas: {e}")
     return df
 
+# Función para procesar los montos del libro auxiliar
+def procesar_montos_auxiliar(df):
+    """
+    Procesa las columnas de débitos y créditos para obtener una columna de monto unificada.
+    """
+    # Verificar si existen las columnas debitos y creditos
+    columnas = df.columns.str.lower()
+    
+    # Mostrar información de diagnóstico
+    st.write("Columnas del libro auxiliar:", ", ".join(columnas))
+    
+    # Buscar columnas de débitos
+    cols_debito = [col for col in columnas if "deb" in col or "debe" in col or "cargo" in col]
+    # Buscar columnas de créditos
+    cols_credito = [col for col in columnas if "cred" in col or "haber" in col or "abono" in col]
+    
+    st.write(f"Columnas de débito encontradas: {cols_debito}")
+    st.write(f"Columnas de crédito encontradas: {cols_credito}")
+    
+    # Si ya existe una columna de monto, verificar si tiene valores válidos
+    if "monto" in columnas:
+        if df["monto"].notna().any() and (df["monto"] != 0).any():
+            st.success("Columna de monto encontrada con valores válidos.")
+            return df
+    
+    # Si encontramos columnas de débito y crédito
+    if cols_debito and cols_credito:
+        # Crear nueva columna monto
+        df["monto"] = 0
+        
+        # Sumar los débitos (valores positivos)
+        for col in cols_debito:
+            df["monto"] += df[col].fillna(0)
+        
+        # Restar los créditos (valores negativos)
+        for col in cols_credito:
+            df["monto"] -= df[col].fillna(0)
+            
+        # Para verificar, mostrar algunos valores
+        st.write("Primeros 5 montos calculados:", df["monto"].head(5).tolist())
+        
+        # Eliminar columnas originales de débito y crédito
+        df.drop(columns=cols_debito + cols_credito, inplace=True, errors='ignore')
+    else:
+        st.warning("No se encontraron columnas de débito y crédito. Puede que los montos no se procesen correctamente.")
+    
+    return df
+
 # Función para encontrar combinaciones que sumen un monto específico
-def encontrar_combinaciones(movimientos, monto_objetivo, tolerancia=0.01):
+def encontrar_combinaciones(df, monto_objetivo, tolerancia=0.01, max_combinacion=4):
+    """
+    Encuentra combinaciones de valores en df['monto'] que sumen aproximadamente monto_objetivo.
+    Devuelve lista de índices de las filas que conforman la combinación.
+    """
+    movimientos = df["monto"].tolist()
+    indices = df.index.tolist()
     combinaciones_validas = []
-    for r in range(1, len(movimientos) + 1):
-        for combo in combinations(movimientos, r):
-            if abs(sum(combo) - monto_objetivo) <= tolerancia:
-                combinaciones_validas.append(combo)
-    return combinaciones_validas
+    
+    # Limitar la búsqueda a combinaciones pequeñas
+    for r in range(1, min(max_combinacion, len(movimientos)) + 1):
+        for combo_indices in combinations(range(len(movimientos)), r):
+            combo_valores = [movimientos[i] for i in combo_indices]
+            if abs(sum(combo_valores) - monto_objetivo) <= tolerancia:
+                indices_combinacion = [indices[i] for i in combo_indices]
+                combinaciones_validas.append((indices_combinacion, combo_valores))
+    
+    # Ordenar por tamaño de combinación (preferimos las más pequeñas)
+    combinaciones_validas.sort(key=lambda x: len(x[0]))
+    
+    if combinaciones_validas:
+        return combinaciones_validas[0][0]  # Devolver los índices de la mejor combinación
+    return []
 
-# Función para realizar la conciliación por agrupación en el libro auxiliar
-def conciliacion_agrupacion_libro_auxiliar(extracto_no_conciliado, auxiliar_no_conciliado):
+# Función para la conciliación directa (uno a uno)
+def conciliacion_directa(extracto_df, auxiliar_df):
+    """
+    Realiza la conciliación directa entre el extracto bancario y el libro auxiliar.
+    Busca coincidencias exactas en fecha y monto.
+    """
     resultados = []
-    for _, movimiento_extracto in extracto_no_conciliado.iterrows():
-        monto_objetivo = movimiento_extracto["monto"]
-        movimientos_auxiliar = auxiliar_no_conciliado["monto"].tolist()
-        combinaciones = encontrar_combinaciones(movimientos_auxiliar, monto_objetivo)
+    extracto_conciliado_idx = set()
+    auxiliar_conciliado_idx = set()
+    
+    # Para cada fila en el extracto
+    for idx_extracto, fila_extracto in extracto_df.iterrows():
+        # Buscar coincidencias en el libro auxiliar
+        coincidencias = auxiliar_df[
+            (auxiliar_df["fecha"] == fila_extracto["fecha"]) & 
+            (abs(auxiliar_df["monto"] - fila_extracto["monto"]) < 0.01)
+        ]
+        
+        if not coincidencias.empty:
+            # Tomar la primera coincidencia
+            idx_auxiliar = coincidencias.index[0]
+            fila_auxiliar = coincidencias.iloc[0]
+            
+            # Marcar como conciliados
+            extracto_conciliado_idx.add(idx_extracto)
+            auxiliar_conciliado_idx.add(idx_auxiliar)
+            
+            # Añadir a resultados
+            resultados.append({
+                'fecha': fila_extracto["fecha"],
+                'monto': fila_extracto["monto"],
+                'concepto': fila_extracto.get("concepto", ""),
+                'numero_movimiento': fila_extracto.get("numero_movimiento", ""),
+                'origen': 'Banco',
+                'estado': 'Conciliado',
+                'tipo_conciliacion': 'Directa',
+                'doc_conciliacion': fila_auxiliar.get("doc. num", "")
+            })
+    
+    # Registros no conciliados del extracto bancario
+    for idx_extracto, fila_extracto in extracto_df.iterrows():
+        if idx_extracto not in extracto_conciliado_idx:
+            resultados.append({
+                'fecha': fila_extracto["fecha"],
+                'monto': fila_extracto["monto"],
+                'concepto': fila_extracto.get("concepto", ""),
+                'numero_movimiento': fila_extracto.get("numero_movimiento", ""),
+                'origen': 'Banco',
+                'estado': 'No Conciliado',
+                'tipo_conciliacion': '',
+                'doc_conciliacion': ''
+            })
+    
+    # Registros no conciliados del libro auxiliar
+    for idx_auxiliar, fila_auxiliar in auxiliar_df.iterrows():
+        if idx_auxiliar not in auxiliar_conciliado_idx:
+            resultados.append({
+                'fecha': fila_auxiliar["fecha"],
+                'monto': fila_auxiliar["monto"],
+                'concepto': fila_auxiliar.get("nota", ""),
+                'numero_movimiento': '',
+                'origen': 'Libro Auxiliar',
+                'estado': 'No Conciliado',
+                'tipo_conciliacion': '',
+                'doc_conciliacion': fila_auxiliar.get("doc. num", "")
+            })
+    
+    return pd.DataFrame(resultados), extracto_conciliado_idx, auxiliar_conciliado_idx
 
-        if combinaciones:
-            for combo in combinaciones:
-                indices = auxiliar_no_conciliado[auxiliar_no_conciliado["monto"].isin(combo)].index
-                resultados.append({
-                    "fecha": movimiento_extracto["fecha"],
-                    "monto": monto_objetivo,
-                    "origen": "Banco",
-                    "estado": "Conciliado",
-                    "doc. conciliación": ", ".join(auxiliar_no_conciliado.loc[indices, "doc. num"].astype(str)),
-                    "tipo agrupación": "Libro Auxiliar"
-                })
-                auxiliar_no_conciliado.drop(indices, inplace=True)
-    return pd.DataFrame(resultados)
+# Función para la conciliación por agrupación en el libro auxiliar
+def conciliacion_agrupacion_auxiliar(extracto_df, auxiliar_df, extracto_conciliado_idx, auxiliar_conciliado_idx):
+    """
+    Busca grupos de valores en el libro auxiliar que sumen el monto de un movimiento en el extracto.
+    """
+    resultados = []
+    nuevos_extracto_conciliado = set()
+    nuevos_auxiliar_conciliado = set()
+    
+    # Filtrar los registros aún no conciliados
+    extracto_no_conciliado = extracto_df[~extracto_df.index.isin(extracto_conciliado_idx)]
+    auxiliar_no_conciliado = auxiliar_df[~auxiliar_df.index.isin(auxiliar_conciliado_idx)]
+    
+    # Para cada movimiento no conciliado del extracto
+    for idx_extracto, fila_extracto in extracto_no_conciliado.iterrows():
+        # Buscar combinaciones en el libro auxiliar
+        indices_combinacion = encontrar_combinaciones(
+            auxiliar_no_conciliado, 
+            fila_extracto["monto"],
+            tolerancia=0.01
+        )
+        
+        if indices_combinacion:
+            # Marcar como conciliados
+            nuevos_extracto_conciliado.add(idx_extracto)
+            nuevos_auxiliar_conciliado.update(indices_combinacion)
+            
+            # Obtener números de documento
+            docs_conciliacion = auxiliar_no_conciliado.loc[indices_combinacion, "doc. num"].astype(str).tolist()
+            docs_conciliacion = [str(doc) for doc in docs_conciliacion]
+            
+            # Añadir a resultados
+            resultados.append({
+                'fecha': fila_extracto["fecha"],
+                'monto': fila_extracto["monto"],
+                'concepto': fila_extracto.get("concepto", ""),
+                'numero_movimiento': fila_extracto.get("numero_movimiento", ""),
+                'origen': 'Banco',
+                'estado': 'Conciliado',
+                'tipo_conciliacion': 'Agrupación en Libro Auxiliar',
+                'doc_conciliacion': ", ".join(docs_conciliacion)
+            })
+    
+    return pd.DataFrame(resultados), nuevos_extracto_conciliado, nuevos_auxiliar_conciliado
+
+# Función para la conciliación por agrupación en el extracto bancario
+def conciliacion_agrupacion_extracto(extracto_df, auxiliar_df, extracto_conciliado_idx, auxiliar_conciliado_idx):
+    """
+    Busca grupos de valores en el extracto que sumen el monto de un movimiento en el libro auxiliar.
+    """
+    resultados = []
+    nuevos_extracto_conciliado = set()
+    nuevos_auxiliar_conciliado = set()
+    
+    # Filtrar los registros aún no conciliados
+    extracto_no_conciliado = extracto_df[~extracto_df.index.isin(extracto_conciliado_idx)]
+    auxiliar_no_conciliado = auxiliar_df[~auxiliar_df.index.isin(auxiliar_conciliado_idx)]
+    
+    # Para cada movimiento no conciliado del libro auxiliar
+    for idx_auxiliar, fila_auxiliar in auxiliar_no_conciliado.iterrows():
+        # Buscar combinaciones en el extracto
+        indices_combinacion = encontrar_combinaciones(
+            extracto_no_conciliado, 
+            fila_auxiliar["monto"],
+            tolerancia=0.01
+        )
+        
+        if indices_combinacion:
+            # Marcar como conciliados
+            nuevos_auxiliar_conciliado.add(idx_auxiliar)
+            nuevos_extracto_conciliado.update(indices_combinacion)
+            
+            # Obtener números de movimiento
+            nums_movimiento = extracto_no_conciliado.loc[indices_combinacion, "numero_movimiento"].astype(str).tolist()
+            nums_movimiento = [str(num) for num in nums_movimiento]
+            
+            # Añadir a resultados
+            resultados.append({
+                'fecha': fila_auxiliar["fecha"],
+                'monto': fila_auxiliar["monto"],
+                'concepto': fila_auxiliar.get("nota", ""),
+                'numero_movimiento': ", ".join(nums_movimiento),
+                'origen': 'Libro Auxiliar',
+                'estado': 'Conciliado',
+                'tipo_conciliacion': 'Agrupación en Extracto Bancario',
+                'doc_conciliacion': fila_auxiliar.get("doc. num", "")
+            })
+    
+    return pd.DataFrame(resultados), nuevos_extracto_conciliado, nuevos_auxiliar_conciliado
 
 # Función principal de conciliación
-def conciliar_banco_excel(extracto_df, auxiliar_df):
-    # Asegurarse de que la columna fecha tenga el mismo tipo en ambos DataFrames
-    extracto_df_copy = extracto_df.copy()
-    auxiliar_df_copy = auxiliar_df.copy()
+def conciliar_banco_completo(extracto_df, auxiliar_df):
+    """
+    Implementa la lógica completa de conciliación.
+    """
+    # 1. Conciliación directa (uno a uno)
+    resultados_directa, extracto_conciliado_idx, auxiliar_conciliado_idx = conciliacion_directa(
+        extracto_df, auxiliar_df
+    )
+    st.write(f"Conciliación directa: {len(extracto_conciliado_idx)} movimientos del extracto y {len(auxiliar_conciliado_idx)} movimientos del auxiliar")
     
-    # Realizar la conciliación uno a uno usando concat en lugar de merge
-    # Primero, crear identificadores únicos
-    extracto_df_copy['source'] = 'banco'
-    auxiliar_df_copy['source'] = 'auxiliar'
+    # 2. Conciliación por agrupación en el libro auxiliar
+    resultados_agrup_aux, nuevos_extracto_conc1, nuevos_auxiliar_conc1 = conciliacion_agrupacion_auxiliar(
+        extracto_df, auxiliar_df, extracto_conciliado_idx, auxiliar_conciliado_idx
+    )
+    st.write(f"Conciliación por agrupación en libro auxiliar: {len(nuevos_extracto_conc1)} movimientos del extracto y {len(nuevos_auxiliar_conc1)} movimientos del auxiliar")
     
-    # Concatenar los DataFrames
-    combined_df = pd.concat([extracto_df_copy, auxiliar_df_copy], ignore_index=True)
+    # Actualizar índices de conciliados
+    extracto_conciliado_idx.update(nuevos_extracto_conc1)
+    auxiliar_conciliado_idx.update(nuevos_auxiliar_conc1)
     
-    # Agrupar por fecha y monto para encontrar coincidencias
-    grouped = combined_df.groupby(['fecha', 'monto']).apply(lambda x: {
-        'banco': x[x['source'] == 'banco'],
-        'auxiliar': x[x['source'] == 'auxiliar'],
-        'match': len(x[x['source'] == 'banco']) > 0 and len(x[x['source'] == 'auxiliar']) > 0
-    }).reset_index()
-    
-    # Crear DataFrame de resultados
-    resultados = []
-    for _, row in grouped.iterrows():
-        grupo_banco = row[0]['banco']
-        grupo_auxiliar = row[0]['auxiliar']
-        match = row[0]['match']
-        
-        for _, banco_row in grupo_banco.iterrows():
-            resultado = {
-                'fecha': banco_row['fecha'],
-                'monto': banco_row['monto'],
-                'concepto': banco_row.get('concepto', None),
-                'numero_movimiento': banco_row.get('numero_movimiento', None),
-                'origen': 'Banco',
-                'estado': 'Conciliado' if match else 'No Conciliado',
-                'doc. conciliación': None
-            }
-            if match and not grupo_auxiliar.empty:
-                # Tomar el primer documento del libro auxiliar que coincide
-                resultado['doc. conciliación'] = grupo_auxiliar.iloc[0].get('doc. num', None)
-            resultados.append(resultado)
-        
-        # Agregar filas del libro auxiliar que no tienen correspondencia en el banco
-        if not match or grupo_banco.empty:
-            for _, auxiliar_row in grupo_auxiliar.iterrows():
-                resultados.append({
-                    'fecha': auxiliar_row['fecha'],
-                    'monto': auxiliar_row['monto'],
-                    'concepto': None,
-                    'numero_movimiento': None,
-                    'nota': auxiliar_row.get('nota', None),
-                    'origen': 'Libro Auxiliar',
-                    'estado': 'No Conciliado',
-                    'doc. conciliación': auxiliar_row.get('doc. num', None)
-                })
-    
-    resultados_df = pd.DataFrame(resultados)
-    
-    # Realizar agrupación de registros no conciliados
-    extracto_no_conciliado = resultados_df[(resultados_df['origen'] == 'Banco') & 
-                                          (resultados_df['estado'] == 'No Conciliado')]
-    
-    # Filtrar registros del libro auxiliar que no se han usado en conciliaciones directas
-    doc_conciliados = resultados_df[resultados_df['estado'] == 'Conciliado']['doc. conciliación'].dropna().unique()
-    auxiliar_no_conciliado = auxiliar_df_copy[~auxiliar_df_copy['doc. num'].isin(doc_conciliados)]
-    
-    # Realizar conciliación por agrupación
-    resultados_agrupacion = conciliacion_agrupacion_libro_auxiliar(extracto_no_conciliado, auxiliar_no_conciliado)
+    # 3. Conciliación por agrupación en el extracto bancario
+    resultados_agrup_ext, nuevos_extracto_conc2, nuevos_auxiliar_conc2 = conciliacion_agrupacion_extracto(
+        extracto_df, auxiliar_df, extracto_conciliado_idx, auxiliar_conciliado_idx
+    )
+    st.write(f"Conciliación por agrupación en extracto bancario: {len(nuevos_extracto_conc2)} movimientos del extracto y {len(nuevos_auxiliar_conc2)} movimientos del auxiliar")
     
     # Combinar resultados
-    resultados_finales = pd.concat([resultados_df, resultados_agrupacion], ignore_index=True)
+    resultados_finales = pd.concat([
+        resultados_directa,
+        resultados_agrup_aux,
+        resultados_agrup_ext
+    ], ignore_index=True)
     
     return resultados_finales
 
@@ -239,27 +396,26 @@ if extracto_file and auxiliar_file:
     try:
         # Definir las columnas esperadas y sus posibles variantes
         columnas_esperadas_extracto = {
-            "fecha": ["fecha de operación", "fecha", "date", "fecha_operacion"],
-            "monto": ["importe (cop)", "monto", "valor", "amount"],
-            "concepto": ["concepto", "descripción", "observaciones", "concepto banco"],
-            "numero_movimiento": ["número de movimiento", "numero de movimiento", "movimiento"]
+            "fecha": ["fecha de operación", "fecha", "date", "fecha_operacion", "f. operación"],
+            "monto": ["importe (cop)", "monto", "valor", "amount", "importe"],
+            "concepto": ["concepto", "descripción", "observaciones", "concepto banco", "descripcion"],
+            "numero_movimiento": ["número de movimiento", "numero de movimiento", "movimiento", "no. movimiento", "num"]
         }
 
         columnas_esperadas_auxiliar = {
-            "fecha": ["fecha", "date", "fecha de operación", "fecha_operacion"],
-            "monto": ["debitos", "creditos", "monto", "importe", "valor", "amount"],
-            "nota": ["nota", "nota libro auxiliar", "descripción", "observaciones"],
-            "doc. num": ["doc num", "doc. num", "documento", "número documento", "numero documento"]
+            "fecha": ["fecha", "date", "fecha de operación", "fecha_operacion", "f. operación"],
+            "debitos": ["debitos", "débitos", "debe", "cargo", "cargos", "valor débito"],
+            "creditos": ["creditos", "créditos", "haber", "abono", "abonos", "valor crédito"],
+            "nota": ["nota", "nota libro auxiliar", "descripción", "observaciones", "descripcion"],
+            "doc. num": ["doc num", "doc. num", "documento", "número documento", "numero documento", "nro. documento"]
         }
 
         # Leer los datos a partir de la fila de encabezados
         extracto_df = leer_datos_desde_encabezados(extracto_file, columnas_esperadas_extracto, "Extracto Bancario", max_filas=50)
         auxiliar_df = leer_datos_desde_encabezados(auxiliar_file, columnas_esperadas_auxiliar, "Libro Auxiliar", max_filas=50)
 
-        # Procesar datos del libro auxiliar para combinar débitos y créditos en una sola columna de monto
-        if "debitos" in auxiliar_df.columns and "creditos" in auxiliar_df.columns:
-            auxiliar_df["monto"] = auxiliar_df["debitos"].fillna(0) - auxiliar_df["creditos"].fillna(0)
-            auxiliar_df.drop(columns=["debitos", "creditos"], inplace=True, errors='ignore')
+        # Procesar datos del libro auxiliar
+        auxiliar_df = procesar_montos_auxiliar(auxiliar_df)
         
         # Estandarizar las fechas en ambos DataFrames
         extracto_df = estandarizar_fechas(extracto_df)
@@ -269,11 +425,41 @@ if extracto_file and auxiliar_file:
         st.write("Tipo de dato en columna fecha (Extracto):", extracto_df['fecha'].dtype)
         st.write("Tipo de dato en columna fecha (Auxiliar):", auxiliar_df['fecha'].dtype)
 
+        # Mostrar resúmenes de los datos cargados
+        st.subheader("Resumen de datos cargados")
+        st.write(f"Extracto bancario: {len(extracto_df)} movimientos")
+        st.write(f"Libro auxiliar: {len(auxiliar_df)} movimientos")
+        
+        # Mostrar las primeras filas como ejemplo
+        col1, col2 = st.columns(2)
+        with col1:
+            st.write("Primeras filas del extracto bancario:")
+            st.write(extracto_df.head(3))
+        with col2:
+            st.write("Primeras filas del libro auxiliar:")
+            st.write(auxiliar_df.head(3))
+
         # Realizar conciliación
-        resultados_df = conciliar_banco_excel(extracto_df, auxiliar_df)
+        resultados_df = conciliar_banco_completo(extracto_df, auxiliar_df)
 
         # Mostrar resultados
         st.subheader("Resultados de la Conciliación")
+        
+        # Estadísticas de conciliación
+        conciliados = resultados_df[resultados_df['estado'] == 'Conciliado']
+        no_conciliados = resultados_df[resultados_df['estado'] == 'No Conciliado']
+        
+        st.write(f"Total de movimientos: {len(resultados_df)}")
+        st.write(f"Movimientos conciliados: {len(conciliados)} ({len(conciliados)/len(resultados_df)*100:.2f}%)")
+        st.write(f"Movimientos no conciliados: {len(no_conciliados)} ({len(no_conciliados)/len(resultados_df)*100:.2f}%)")
+        
+        # Mostrar resultados por tipo de conciliación
+        st.write("Distribución por tipo de conciliación:")
+        tipo_conciliacion = resultados_df.groupby('tipo_conciliacion').size().reset_index(name='cantidad')
+        st.write(tipo_conciliacion)
+        
+        # Mostrar todos los resultados
+        st.write("Detalle de todos los movimientos:")
         st.write(resultados_df)
 
         # Generar archivo de resultados
