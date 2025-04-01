@@ -117,23 +117,6 @@ def estandarizar_fechas(df):
             st.warning(f"Error al convertir fechas: {e}")
     return df
 
-
-# Función para asegurar que los montos sean numéricos
-def asegurar_montos_numericos(df):
-    """
-    Convierte la columna 'monto' a tipo numérico.
-    """
-    if 'monto' in df.columns:
-        try:
-            # Convertir a numérico
-            df['monto'] = pd.to_numeric(df['monto'], errors='coerce')
-            # Eliminar filas con montos inválidos
-            df = df.dropna(subset=['monto'])
-            st.success(f"Columna 'monto' convertida a numérico. Tipo de dato: {df['monto'].dtype}")
-        except Exception as e:
-            st.error(f"Error al convertir montos a numérico: {e}")
-    return df
-
 # Función para procesar los montos del libro auxiliar
 def procesar_montos_auxiliar(df):
     """
@@ -440,6 +423,7 @@ def conciliar_banco_completo(extracto_df, auxiliar_df):
     ], ignore_index=True)
     
     return resultados_finales
+
 # Interfaz de Streamlit
 st.title("Herramienta de Conciliación Bancaria Automática")
 
