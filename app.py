@@ -107,6 +107,21 @@ def normalizar_dataframe(df, columnas_esperadas):
     
     return df
 
+# Función para estandarizar el formato de fechas
+def estandarizar_fechas(df):
+    """
+    Convierte la columna 'fecha' a formato datetime64.
+    """
+    if 'fecha' in df.columns:
+        try:
+            # Convertir a datetime
+            df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce')
+            # Eliminar filas con fechas inválidas
+            df = df.dropna(subset=['fecha'])
+        except Exception as e:
+            st.warning(f"Error al convertir fechas: {e}")
+    return df
+
 # Función para encontrar combinaciones que sumen un monto específico
 def encontrar_combinaciones(movimientos, monto_objetivo, tolerancia=0.01):
     combinaciones_validas = []
@@ -140,30 +155,78 @@ def conciliacion_agrupacion_libro_auxiliar(extracto_no_conciliado, auxiliar_no_c
 
 # Función principal de conciliación
 def conciliar_banco_excel(extracto_df, auxiliar_df):
-    resultados_df = pd.DataFrame()
-
-    # 1. Conciliación Directa (Uno a Uno)
-    resultados_directa = pd.merge(
-        extracto_df, auxiliar_df, on=["fecha", "monto"], how="outer", suffixes=("_banco", "_auxiliar")
-    )
-    resultados_directa["origen"] = resultados_directa.apply(
-        lambda row: "Banco" if pd.notna(row["concepto"]) else "Libro Auxiliar", axis=1
-    )
-    resultados_directa["estado"] = resultados_directa.apply(
-        lambda row: "Conciliado" if pd.notna(row["concepto"]) and pd.notna(row["nota"]) else "No Conciliado", axis=1
-    )
-    resultados_directa["doc. conciliación"] = resultados_directa.apply(
-        lambda row: row["doc. num"] if pd.notna(row["concepto"]) and pd.notna(row["nota"]) else None, axis=1
-    )
-    resultados_df = pd.concat([resultados_df, resultados_directa], ignore_index=True)
-
-    # 2. Conciliación por Agrupación en el Libro Auxiliar
-    extracto_no_conciliado = resultados_df[resultados_df["estado"] == "No Conciliado"]
-    auxiliar_no_conciliado = auxiliar_df[~auxiliar_df["doc. num"].isin(resultados_df["doc. num"])]
-    resultados_agrupacion_libro = conciliacion_agrupacion_libro_auxiliar(extracto_no_conciliado, auxiliar_no_conciliado)
-    resultados_df = pd.concat([resultados_df, resultados_agrupacion_libro], ignore_index=True)
-
-    return resultados_df
+    # Asegurarse de que la columna fecha tenga el mismo tipo en ambos DataFrames
+    extracto_df_copy = extracto_df.copy()
+    auxiliar_df_copy = auxiliar_df.copy()
+    
+    # Realizar la conciliación uno a uno usando concat en lugar de merge
+    # Primero, crear identificadores únicos
+    extracto_df_copy['source'] = 'banco'
+    auxiliar_df_copy['source'] = 'auxiliar'
+    
+    # Concatenar los DataFrames
+    combined_df = pd.concat([extracto_df_copy, auxiliar_df_copy], ignore_index=True)
+    
+    # Agrupar por fecha y monto para encontrar coincidencias
+    grouped = combined_df.groupby(['fecha', 'monto']).apply(lambda x: {
+        'banco': x[x['source'] == 'banco'],
+        'auxiliar': x[x['source'] == 'auxiliar'],
+        'match': len(x[x['source'] == 'banco']) > 0 and len(x[x['source'] == 'auxiliar']) > 0
+    }).reset_index()
+    
+    # Crear DataFrame de resultados
+    resultados = []
+    for _, row in grouped.iterrows():
+        grupo_banco = row[0]['banco']
+        grupo_auxiliar = row[0]['auxiliar']
+        match = row[0]['match']
+        
+        for _, banco_row in grupo_banco.iterrows():
+            resultado = {
+                'fecha': banco_row['fecha'],
+                'monto': banco_row['monto'],
+                'concepto': banco_row.get('concepto', None),
+                'numero_movimiento': banco_row.get('numero_movimiento', None),
+                'origen': 'Banco',
+                'estado': 'Conciliado' if match else 'No Conciliado',
+                'doc. conciliación': None
+            }
+            if match and not grupo_auxiliar.empty:
+                # Tomar el primer documento del libro auxiliar que coincide
+                resultado['doc. conciliación'] = grupo_auxiliar.iloc[0].get('doc. num', None)
+            resultados.append(resultado)
+        
+        # Agregar filas del libro auxiliar que no tienen correspondencia en el banco
+        if not match or grupo_banco.empty:
+            for _, auxiliar_row in grupo_auxiliar.iterrows():
+                resultados.append({
+                    'fecha': auxiliar_row['fecha'],
+                    'monto': auxiliar_row['monto'],
+                    'concepto': None,
+                    'numero_movimiento': None,
+                    'nota': auxiliar_row.get('nota', None),
+                    'origen': 'Libro Auxiliar',
+                    'estado': 'No Conciliado',
+                    'doc. conciliación': auxiliar_row.get('doc. num', None)
+                })
+    
+    resultados_df = pd.DataFrame(resultados)
+    
+    # Realizar agrupación de registros no conciliados
+    extracto_no_conciliado = resultados_df[(resultados_df['origen'] == 'Banco') & 
+                                          (resultados_df['estado'] == 'No Conciliado')]
+    
+    # Filtrar registros del libro auxiliar que no se han usado en conciliaciones directas
+    doc_conciliados = resultados_df[resultados_df['estado'] == 'Conciliado']['doc. conciliación'].dropna().unique()
+    auxiliar_no_conciliado = auxiliar_df_copy[~auxiliar_df_copy['doc. num'].isin(doc_conciliados)]
+    
+    # Realizar conciliación por agrupación
+    resultados_agrupacion = conciliacion_agrupacion_libro_auxiliar(extracto_no_conciliado, auxiliar_no_conciliado)
+    
+    # Combinar resultados
+    resultados_finales = pd.concat([resultados_df, resultados_agrupacion], ignore_index=True)
+    
+    return resultados_finales
 
 # Interfaz de Streamlit
 st.title("Herramienta de Conciliación Bancaria Automática")
@@ -197,6 +260,14 @@ if extracto_file and auxiliar_file:
         if "debitos" in auxiliar_df.columns and "creditos" in auxiliar_df.columns:
             auxiliar_df["monto"] = auxiliar_df["debitos"].fillna(0) - auxiliar_df["creditos"].fillna(0)
             auxiliar_df.drop(columns=["debitos", "creditos"], inplace=True, errors='ignore')
+        
+        # Estandarizar las fechas en ambos DataFrames
+        extracto_df = estandarizar_fechas(extracto_df)
+        auxiliar_df = estandarizar_fechas(auxiliar_df)
+        
+        # Mostrar información sobre los tipos de datos
+        st.write("Tipo de dato en columna fecha (Extracto):", extracto_df['fecha'].dtype)
+        st.write("Tipo de dato en columna fecha (Auxiliar):", auxiliar_df['fecha'].dtype)
 
         # Realizar conciliación
         resultados_df = conciliar_banco_excel(extracto_df, auxiliar_df)
@@ -220,5 +291,6 @@ if extracto_file and auxiliar_file:
         )
     except Exception as e:
         st.error(f"Error al procesar los archivos: {e}")
+        st.exception(e)  # Muestra el traceback completo para depuración
 else:
     st.info("Por favor, sube ambos archivos para comenzar la conciliación.")
