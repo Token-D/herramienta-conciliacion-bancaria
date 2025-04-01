@@ -4,7 +4,7 @@ from io import BytesIO
 from itertools import combinations
 
 # Función para buscar la fila de encabezados
-def buscar_fila_encabezados(df, columnas_esperadas, max_filas=25):
+def buscar_fila_encabezados(df, columnas_esperadas, max_filas=20):
     """
     Busca la fila que contiene los nombres de las columnas esperadas.
     """
@@ -31,7 +31,7 @@ def buscar_fila_encabezados(df, columnas_esperadas, max_filas=25):
     return None
 
 # Función para leer datos a partir de la fila de encabezados
-def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, max_filas=50):
+def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, max_filas=20):
     """
     Lee los datos de un archivo de Excel a partir de la fila que contiene los encabezados.
     """
@@ -441,8 +441,8 @@ if extracto_file and auxiliar_file:
         }
 
         # Leer los datos a partir de la fila de encabezados
-        extracto_df = leer_datos_desde_encabezados(extracto_file, columnas_esperadas_extracto, "Extracto Bancario", max_filas=50)
-        auxiliar_df = leer_datos_desde_encabezados(auxiliar_file, columnas_esperadas_auxiliar, "Libro Auxiliar", max_filas=50)
+        extracto_df = leer_datos_desde_encabezados(extracto_file, columnas_esperadas_extracto, "Extracto Bancario", max_filas=20)
+        auxiliar_df = leer_datos_desde_encabezados(auxiliar_file, columnas_esperadas_auxiliar, "Libro Auxiliar", max_filas=20)
 
         # Procesar datos del libro auxiliar
         auxiliar_df = procesar_montos_auxiliar(auxiliar_df)
@@ -460,10 +460,10 @@ if extracto_file and auxiliar_file:
         col1, col2 = st.columns(2)
         with col1:
             st.write("Primeras filas del extracto bancario:")
-            st.write(extracto_df.head(5))
+            st.write(extracto_df.head(50))
         with col2:
             st.write("Primeras filas del libro auxiliar:")
-            st.write(auxiliar_df.head(5))
+            st.write(auxiliar_df.head(50))
 
         # Realizar conciliación
         resultados_df = conciliar_banco_completo(extracto_df, auxiliar_df)
