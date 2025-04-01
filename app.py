@@ -598,12 +598,8 @@ if extracto_file and auxiliar_file:
         auxiliar_df = procesar_montos_auxiliar(auxiliar_df)
         
         # Estandarizar las fechas en ambos DataFrames
-        if detectar_formato_auto:
         extracto_df = estandarizar_fechas_automatico(extracto_df, "Extracto Bancario")
         auxiliar_df = estandarizar_fechas_automatico(auxiliar_df, "Libro Auxiliar")
-        else:
-        extracto_df = estandarizar_fechas(extracto_df, num_mes)
-        auxiliar_df = estandarizar_fechas(auxiliar_df, num_mes)
         
         # Mostrar resúmenes de los datos cargados
         st.subheader("Resumen de datos cargados")
