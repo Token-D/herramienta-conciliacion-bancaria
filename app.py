@@ -428,7 +428,7 @@ if extracto_file and auxiliar_file:
         columnas_esperadas_extracto = {
             "fecha": ["fecha de operación", "fecha", "date", "fecha_operacion", "f. operación"],
             "monto": ["importe (cop)", "monto", "valor", "amount", "importe"],
-            "concepto": ["concepto", "descripción", "observaciones", "concepto banco", "descripcion"],
+            "concepto": ["concepto", "descripción", "concepto banco", "descripcion"],
             "numero_movimiento": ["número de movimiento", "numero de movimiento", "movimiento", "no. movimiento", "num"]
         }
 
