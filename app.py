@@ -100,13 +100,6 @@ def normalizar_dataframe(df, columnas_esperadas):
     # Eliminar columnas duplicadas después de renombrar
     df = df.loc[:, ~df.columns.duplicated(keep='first')]
     
-    # Conversión de la columna 'monto' a numérico
-    df['monto'] = pd.to_numeric(df['monto'], errors='coerce')
-    
-    # Mensajes de depuración
-    print("Nombres de columnas después de normalizar:", df.columns.tolist())
-    print("Primeros valores de la columna 'monto':", df['monto'].head())
-    
     return df
 
 # Función para estandarizar el formato de fechas
