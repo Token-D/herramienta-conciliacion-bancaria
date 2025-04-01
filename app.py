@@ -423,11 +423,11 @@ def conciliacion_directa(extracto_df, auxiliar_df):
                 'fecha': fila_auxiliar["fecha"],
                 'monto': fila_auxiliar["monto"],
                 'concepto': fila_auxiliar.get("nota", ""),
-                'numero_movimiento': '',
+                'numero_movimiento': fila_auxiliar.get("numero_movimiento", ""),
                 'origen': 'Libro Auxiliar',
                 'estado': 'No Conciliado',
                 'tipo_conciliacion': '',
-                'doc_conciliacion': fila_auxiliar.get("numero_movimiento", "")
+                'doc_conciliacion': ''
             })
     
     return pd.DataFrame(resultados), extracto_conciliado_idx, auxiliar_conciliado_idx
@@ -513,11 +513,11 @@ def conciliacion_agrupacion_extracto(extracto_df, auxiliar_df, extracto_concilia
                 'fecha': fila_auxiliar["fecha"],
                 'monto': fila_auxiliar["monto"],
                 'concepto': fila_auxiliar.get("nota", ""),
-                'numero_movimiento': ", ".join(nums_movimiento),
+                'numero_movimiento': fila_auxiliar.get("numero_movimiento", ""),
                 'origen': 'Libro Auxiliar',
                 'estado': 'Conciliado',
                 'tipo_conciliacion': 'Agrupación en Extracto Bancario',
-                'doc_conciliacion': fila_auxiliar.get("numero_movimiento", "")
+                'doc_conciliacion': fila_extracto.get("numero_movimiento", "")
             })
     
     return pd.DataFrame(resultados), nuevos_extracto_conciliado, nuevos_auxiliar_conciliado
