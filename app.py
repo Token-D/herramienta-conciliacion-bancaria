@@ -117,6 +117,22 @@ def estandarizar_fechas(df):
             st.warning(f"Error al convertir fechas: {e}")
     return df
 
+# Función para asegurar que los montos sean numéricos
+def asegurar_montos_numericos(df):
+    """
+    Convierte la columna 'monto' a tipo numérico.
+    """
+    if 'monto' in df.columns:
+        try:
+            # Convertir a numérico
+            df['monto'] = pd.to_numeric(df['monto'], errors='coerce')
+            # Eliminar filas con montos inválidos
+            df = df.dropna(subset=['monto'])
+            st.success(f"Columna 'monto' convertida a numérico. Tipo de dato: {df['monto'].dtype}")
+        except Exception as e:
+            st.error(f"Error al convertir montos a numérico: {e}")
+    return df
+
 # Función para procesar los montos del libro auxiliar
 def procesar_montos_auxiliar(df):
     """
@@ -432,7 +448,7 @@ extracto_file = st.file_uploader("Subir Extracto Bancario (Excel)", type=["xlsx"
 auxiliar_file = st.file_uploader("Subir Libro Auxiliar (Excel)", type=["xlsx"])
 
 if extracto_file and auxiliar_file:
-        try:
+    try:
         # Definir las columnas esperadas y sus posibles variantes
         columnas_esperadas_extracto = {
             "fecha": ["fecha de operación", "fecha", "date", "fecha_operacion", "f. operación"],
@@ -459,31 +475,16 @@ if extracto_file and auxiliar_file:
         # Estandarizar las fechas en ambos DataFrames
         extracto_df = estandarizar_fechas(extracto_df)
         auxiliar_df = estandarizar_fechas(auxiliar_df)
-
-        # Asegurarse de que los montos sean numéricos
-        def asegurar_montos_numericos(df):
-            if 'monto' in df.columns:
-                try:
-                    # Convertir a numérico
-                    df['monto'] = pd.to_numeric(df['monto'], errors='coerce')
-                    # Eliminar filas con montos inválidos
-                    df = df.dropna(subset=['monto'])
-                    st.success(f"Columna 'monto' convertida a numérico. Tipo de dato: {df['monto'].dtype}")
-            except Exception as e:
-                    st.error(f"Error al convertir montos a numérico: {e}")
-            return df
-
-        # Aplicar conversión a ambos dataframes
+        
+        # Asegurar que los montos sean numéricos (nueva función)
         extracto_df = asegurar_montos_numericos(extracto_df)
         auxiliar_df = asegurar_montos_numericos(auxiliar_df)
-
-        # Verificar los tipos de datos
-        st.write("Tipo de dato en columna monto (Extracto):", extracto_df['monto'].dtype)
-        st.write("Tipo de dato en columna monto (Auxiliar):", auxiliar_df['monto'].dtype)
         
         # Mostrar información sobre los tipos de datos
         st.write("Tipo de dato en columna fecha (Extracto):", extracto_df['fecha'].dtype)
         st.write("Tipo de dato en columna fecha (Auxiliar):", auxiliar_df['fecha'].dtype)
+        st.write("Tipo de dato en columna monto (Extracto):", extracto_df['monto'].dtype)
+        st.write("Tipo de dato en columna monto (Auxiliar):", auxiliar_df['monto'].dtype)
 
         # Mostrar resúmenes de los datos cargados
         st.subheader("Resumen de datos cargados")
