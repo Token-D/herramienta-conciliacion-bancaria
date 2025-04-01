@@ -390,7 +390,7 @@ def conciliacion_directa(extracto_df, auxiliar_df):
             extracto_conciliado_idx.add(idx_extracto)
             auxiliar_conciliado_idx.add(idx_auxiliar)
             
-            # Añadir a resultados
+            # Añadir a resultados - entrada del extracto bancario
             resultados.append({
                 'fecha': fila_extracto['fecha'],
                 'monto': fila_extracto['monto'],
@@ -402,6 +402,7 @@ def conciliacion_directa(extracto_df, auxiliar_df):
                 'doc_conciliacion': fila_auxiliar.get('numero_movimiento', '')
             })
 
+            # Añadir a resultados - entrada del libro auxiliar
             resultados.append({
                 'fecha': fila_auxiliar['fecha'],
                 'monto': fila_auxiliar['monto'],
