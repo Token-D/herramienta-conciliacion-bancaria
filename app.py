@@ -472,11 +472,7 @@ if extracto_file and auxiliar_file:
         
         # Estandarizar las fechas en ambos DataFrames
         extracto_df = estandarizar_fechas(extracto_df)
-        auxiliar_df = estandarizar_fechas(auxiliar_df)
-        
-        # Asegurar que los montos sean numéricos (nueva función)
-        extracto_df = asegurar_montos_numericos(extracto_df)
-        auxiliar_df = asegurar_montos_numericos(auxiliar_df)        
+        auxiliar_df = estandarizar_fechas(auxiliar_df)        
         
         # Mostrar información sobre los tipos de datos
         st.write("Tipo de dato en columna fecha (Extracto):", extracto_df['fecha'].dtype)
