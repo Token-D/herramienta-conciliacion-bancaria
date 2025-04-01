@@ -427,7 +427,7 @@ if extracto_file and auxiliar_file:
         # Definir las columnas esperadas y sus posibles variantes
         columnas_esperadas_extracto = {
             "fecha": ["fecha de operación", "fecha valor","fecha", "date", "fecha_operacion", "f. operación"],
-            "monto": ["importe (cop)", "monto", "valor", "amount", "importe"],
+            "monto": ["importe (cop)", "monto", "amount", "importe"],
             "concepto": ["concepto", "descripción", "concepto banco", "descripcion"],
             "numero_movimiento": ["número de movimiento", "numero de movimiento", "movimiento", "no. movimiento", "num"]
         }
