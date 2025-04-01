@@ -235,7 +235,7 @@ def conciliacion_directa(extracto_df, auxiliar_df):
         # Buscar coincidencias en el libro auxiliar
         coincidencias = auxiliar_df[
             (auxiliar_df["fecha"] == fila_extracto["fecha"]) & 
-            (abs(auxiliar_df["monto"] - fila_extracto["monto"]) < 0.01)
+            (abs(auxiliar_df["monto"] - fila_extracto["monto"]))
         ]
         
         if not coincidencias.empty:
