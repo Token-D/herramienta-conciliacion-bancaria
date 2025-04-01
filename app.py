@@ -467,10 +467,10 @@ if extracto_file and auxiliar_file:
         col1, col2 = st.columns(2)
         with col1:
             st.write("Primeras filas del extracto bancario:")
-            st.write(extracto_df.head(13))
+            st.write(extracto_df.head(30))
         with col2:
             st.write("Primeras filas del libro auxiliar:")
-            st.write(auxiliar_df.head(13))
+            st.write(auxiliar_df.head(30))
 
         # Realizar conciliación
         resultados_df = conciliar_banco_completo(extracto_df, auxiliar_df)
