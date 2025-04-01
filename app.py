@@ -36,10 +36,6 @@ def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, ma
     df = pd.read_excel(archivo, header=None)
     total_filas_inicial = len(df)
     st.write(f"Total de filas leídas inicialmente en {nombre_archivo}: {total_filas_inicial}")
-    st.write("Primeras 5 filas del archivo crudo:")
-    st.write(df.head(5))
-    st.write("Últimas 5 filas del archivo crudo:")
-    st.write(df.tail(5))
     
     # Buscar la fila de encabezados
     fila_encabezados = buscar_fila_encabezados(df, columnas_esperadas, max_filas)
@@ -110,14 +106,31 @@ def normalizar_dataframe(df, columnas_esperadas):
 # Función para estandarizar el formato de fechas
 def estandarizar_fechas(df):
     """
-    Convierte la columna 'fecha' a formato datetime64.
+    Convierte la columna 'fecha' a formato datetime64 y muestra información de depuración.
     """
     if 'fecha' in df.columns:
         try:
+            # Mostrar información antes de la conversión
+            st.write(f"Fechas antes de conversión (primeras 5):")
+            st.write(df['fecha'].head(5))
+            
             # Convertir a datetime
-            df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce')
-            # Eliminar filas con fechas inválidas
-            df = df.dropna(subset=['fecha'])
+            df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce', dayfirst=False)
+            
+            # Mostrar información después de la conversión
+            st.write(f"Fechas después de conversión (primeras 5):")
+            st.write(df['fecha'].head(5))
+            
+            # Contar valores nulos
+            nulos = df['fecha'].isna().sum()
+            st.write(f"Filas con fechas nulas: {nulos}")
+            
+            # Si hay nulos, no los elimines automáticamente
+            if nulos > 0:
+                st.warning(f"Hay {nulos} filas con fechas inválidas. Revisar el formato de fechas.")
+                # Puedes comentar la siguiente línea para no eliminar las filas con fechas nulas
+                # df = df.dropna(subset=['fecha'])
+            
         except Exception as e:
             st.warning(f"Error al convertir fechas: {e}")
     return df
@@ -231,24 +244,42 @@ def encontrar_combinaciones(df, monto_objetivo, tolerancia=0.01, max_combinacion
 def conciliacion_directa(extracto_df, auxiliar_df):
     """
     Realiza la conciliación directa entre el extracto bancario y el libro auxiliar.
-    Busca coincidencias exactas en fecha y monto.
+    Busca coincidencias considerando solo la fecha (sin hora) y monto.
     """
     resultados = []
     extracto_conciliado_idx = set()
     auxiliar_conciliado_idx = set()
     
+    # Mostrar información de depuración
+    st.write("Primeras 5 fechas del extracto:")
+    st.write(extracto_df['fecha'].head(5))
+    st.write("Primeras 5 fechas del auxiliar:")
+    st.write(auxiliar_df['fecha'].head(5))
+    
     # Para cada fila en el extracto
     for idx_extracto, fila_extracto in extracto_df.iterrows():
-        # Buscar coincidencias en el libro auxiliar
-        coincidencias = auxiliar_df[
-            (auxiliar_df["fecha"] == fila_extracto["fecha"]) & 
-            (abs(auxiliar_df["monto"] - fila_extracto["monto"]) < 0.01)
-        ]
+        fecha_extracto = fila_extracto["fecha"].date() if pd.notna(fila_extracto["fecha"]) else None
+        monto_extracto = fila_extracto["monto"]
         
-        if not coincidencias.empty:
+        if fecha_extracto is None:
+            continue
+            
+        # Buscar coincidencias en el libro auxiliar
+        coincidencias = []
+        for idx_auxiliar, fila_auxiliar in auxiliar_df.iterrows():
+            fecha_auxiliar = fila_auxiliar["fecha"].date() if pd.notna(fila_auxiliar["fecha"]) else None
+            monto_auxiliar = fila_auxiliar["monto"]
+            
+            if fecha_auxiliar is None:
+                continue
+                
+            # Comprobar si las fechas son iguales (solo día, mes, año) y los montos coinciden
+            if fecha_auxiliar == fecha_extracto and abs(monto_auxiliar - monto_extracto) < 0.01:
+                coincidencias.append((idx_auxiliar, fila_auxiliar))
+        
+        if coincidencias:
             # Tomar la primera coincidencia
-            idx_auxiliar = coincidencias.index[0]
-            fila_auxiliar = coincidencias.iloc[0]
+            idx_auxiliar, fila_auxiliar = coincidencias[0]
             
             # Marcar como conciliados
             extracto_conciliado_idx.add(idx_extracto)
@@ -467,10 +498,10 @@ if extracto_file and auxiliar_file:
         col1, col2 = st.columns(2)
         with col1:
             st.write("Primeras filas del extracto bancario:")
-            st.write(extracto_df.head(30))
+            st.write(extracto_df.head(5))
         with col2:
             st.write("Primeras filas del libro auxiliar:")
-            st.write(auxiliar_df.head(30))
+            st.write(auxiliar_df.head(5))
 
         # Realizar conciliación
         resultados_df = conciliar_banco_completo(extracto_df, auxiliar_df)
