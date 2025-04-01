@@ -440,7 +440,6 @@ def conciliar_banco_completo(extracto_df, auxiliar_df):
     ], ignore_index=True)
     
     return resultados_finales
-
 # Interfaz de Streamlit
 st.title("Herramienta de Conciliación Bancaria Automática")
 
@@ -477,15 +476,9 @@ if extracto_file and auxiliar_file:
         extracto_df = estandarizar_fechas(extracto_df)
         auxiliar_df = estandarizar_fechas(auxiliar_df)
         
-        # Asegurar que los montos sean numéricos (nueva función)
-        extracto_df = asegurar_montos_numericos(extracto_df)
-        auxiliar_df = asegurar_montos_numericos(auxiliar_df)
-        
         # Mostrar información sobre los tipos de datos
         st.write("Tipo de dato en columna fecha (Extracto):", extracto_df['fecha'].dtype)
         st.write("Tipo de dato en columna fecha (Auxiliar):", auxiliar_df['fecha'].dtype)
-        st.write("Tipo de dato en columna monto (Extracto):", extracto_df['monto'].dtype)
-        st.write("Tipo de dato en columna monto (Auxiliar):", auxiliar_df['monto'].dtype)
 
         # Mostrar resúmenes de los datos cargados
         st.subheader("Resumen de datos cargados")
