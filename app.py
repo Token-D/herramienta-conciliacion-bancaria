@@ -197,28 +197,76 @@ def estandarizar_fechas(df, mes_conciliacion):
 def completar_fechas_sin_anio(extracto_df, auxiliar_df):
     """
     Completa las fechas del extracto que no tengan año utilizando el año predominante
-    en el libro auxiliar.
+    en el libro auxiliar. Ejemplo: '1/02' -> '01/02/2025' si 2025 es el año predominante.
     """
     if 'fecha' not in extracto_df.columns or 'fecha' not in auxiliar_df.columns:
+        st.warning(f"Una de las columnas 'fecha' no está presente. No se ajustaron fechas.")
         return extracto_df
     
-    # Verificar si hay fechas con año en el extracto
-    años_extracto = extracto_df['fecha'].dt.year.unique()
+    # Obtener el año predominante del libro auxiliar
+    año_predominante = auxiliar_df['fecha'].dt.year.mode()
+    if año_predominante.empty or pd.isna(año_predominante[0]) or año_predominante[0] <= 1900:
+        st.warning("No se pudo determinar un año predominante válido en el libro auxiliar. Usando el año actual.")
+        año_predominante = pd.Timestamp.now().year
+    else:
+        año_predominante = int(año_predominante[0])
+        st.info(f"Año predominante detectado en el libro auxiliar: {año_predominante}")
     
-    # Si todas las fechas tienen año 1900 o NaT, puede indicar un problema
-    if len(años_extracto) == 1 and (años_extracto[0] == 1900 or pd.isna(años_extracto[0])):
-        # Obtener el año predominante del libro auxiliar
-        año_predominante = auxiliar_df['fecha'].dt.year.mode()[0]
-        if pd.notna(año_predominante) and año_predominante > 1900:
-            st.warning(f"Fechas en extracto bancario sin año. Asignando año {año_predominante} del libro auxiliar.")
-            
-            # Crear una copia de las fechas originales
-            extracto_df['fecha_original'] = extracto_df['fecha'].copy()
-            
-            # Ajustar las fechas del extracto con el año correcto
-            extracto_df['fecha'] = extracto_df['fecha'].apply(
-                lambda x: x.replace(year=año_predominante) if pd.notna(x) else x
-            )
+    # Guardar una copia de las fechas originales para depuración
+    extracto_df['fecha_original'] = extracto_df['fecha'].copy()
+    
+    # Función para parsear y completar fechas
+    def parsear_fecha(fecha, año_default):
+        if pd.isna(fecha):
+            return pd.NaT
+        
+        # Convertir a string para analizar
+        fecha_str = str(fecha).strip()
+        
+        # Verificar si la fecha parece no tener año (ejemplo: "1/02", "01/02", "3-2")
+        if '/' in fecha_str or '-' in fecha_str:
+            partes = fecha_str.replace('/', '-').split('-')
+            if len(partes) == 2:  # Formato "día/mes" o "mes/día"
+                try:
+                    # Intentar parsear como día/mes (formato común en algunos países)
+                    dia, mes = map(int, partes)
+                    return pd.Timestamp(year=año_default, month=mes, day=dia)
+                except (ValueError, TypeError):
+                    # Si falla, intentar como mes/día
+                    try:
+                        mes, dia = map(int, partes)
+                        return pd.Timestamp(year=año_default, month=mes, day=dia)
+                    except (ValueError, TypeError):
+                        return pd.NaT
+            elif len(partes) == 3:  # Formato completo "día/mes/año"
+                try:
+                    dia, mes, año = map(int, partes)
+                    return pd.Timestamp(year=año, month=mes, day=dia)
+                except (ValueError, TypeError):
+                    return pd.NaT
+        
+        # Si no se detecta formato sin año, intentar parsear directamente
+        try:
+            fecha_dt = pd.to_datetime(fecha_str, errors='coerce')
+            if pd.isna(fecha_dt) or fecha_dt.year <= 1900:
+                return pd.NaT
+            return fecha_dt
+        except:
+            return pd.NaT
+    
+    # Aplicar la conversión a la columna 'fecha'
+    filas_antes = len(extracto_df)
+    extracto_df['fecha'] = extracto_df['fecha'].apply(lambda x: parsear_fecha(x, año_predominante))
+    
+    # Eliminar filas con fechas inválidas (opcional, según tu necesidad)
+    extracto_df = extracto_df.dropna(subset=['fecha'])
+    if len(extracto_df) < filas_antes:
+        st.warning(f"Se eliminaron {filas_antes - len(extracto_df)} filas con fechas inválidas después de completar.")
+    
+    # Mostrar un mensaje si se ajustaron fechas
+    fechas_ajustadas = extracto_df['fecha'].dt.year == año_predominante
+    if fechas_ajustadas.any():
+        st.success(f"Se completaron fechas sin año en el extracto usando el año {año_predominante}.")
     
     return extracto_df
     
