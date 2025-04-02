@@ -615,13 +615,11 @@ def conciliar_banco_completo(extracto_df, auxiliar_df):
     resultados_directa, extracto_conciliado_idx, auxiliar_conciliado_idx = conciliacion_directa(
         extracto_df, auxiliar_df
     )
-    st.write(f"Conciliación directa: {len(extracto_conciliado_idx)}  extracto y {len(auxiliar_conciliado_idx)} movimientos del auxiliar")
     
     # 2. Conciliación por agrupación en el libro auxiliar
     resultados_agrup_aux, nuevos_extracto_conc1, nuevos_auxiliar_conc1 = conciliacion_agrupacion_auxiliar(
         extracto_df, auxiliar_df, extracto_conciliado_idx, auxiliar_conciliado_idx
     )
-    st.write(f"Conciliación por agrupación en libro auxiliar: {len(nuevos_extracto_conc1)} movimientos del extracto y {len(nuevos_auxiliar_conc1)} movimientos del auxiliar")
     
     # Actualizar índices de conciliados
     extracto_conciliado_idx.update(nuevos_extracto_conc1)
@@ -631,7 +629,6 @@ def conciliar_banco_completo(extracto_df, auxiliar_df):
     resultados_agrup_ext, nuevos_extracto_conc2, nuevos_auxiliar_conc2 = conciliacion_agrupacion_extracto(
         extracto_df, auxiliar_df, extracto_conciliado_idx, auxiliar_conciliado_idx
     )
-    st.write(f"Conciliación por agrupación en extracto bancario: {len(nuevos_extracto_conc2)} movimientos del extracto y {len(nuevos_auxiliar_conc2)} movimientos del auxiliar")
     
     # Filtrar resultados directos para eliminar los que luego fueron conciliados por agrupación
     if not resultados_directa.empty:
@@ -781,13 +778,6 @@ def realizar_conciliacion(extracto_file, auxiliar_file, mes_conciliacion, invert
     st.subheader("Resumen de datos cargados")
     st.write(f"Extracto bancario: {len(extracto_df)} movimientos")
     st.write(f"Libro auxiliar: {len(auxiliar_df)} movimientos")
-    col1, col2 = st.columns(2)
-    with col1:
-        st.write("Primeras filas del extracto bancario:")
-        st.write(extracto_df.head())
-    with col2:
-        st.write("Primeras filas del libro auxiliar:")
-        st.write(auxiliar_df.head())
 
     # Realizar conciliación
     resultados_df = conciliar_banco_completo(extracto_df, auxiliar_df)
