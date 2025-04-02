@@ -82,7 +82,7 @@ def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, ma
 
     # Inspeccionar fechas crudas antes de procesar
     if 'fecha' in df.columns:
-        st.write(f"Fechas crudas en {nombre_archivo} antes de procesar:")
+        st.write(f"Fechas crudas en {nombre_archivo} (primeras 5):")
         st.write(df['fecha'].head(5))
     
     # Normalizar las columnas
@@ -146,75 +146,51 @@ def normalizar_dataframe(df, columnas_esperadas):
     return df
 
 # Función para estandarizar el formato de fechas
-def estandarizar_fechas(df, mes_conciliacion):
+def estandarizar_fechas(df, mes_conciliacion=None):
     """
-    Convierte la columna 'fecha' a formato datetime64, considerando el mes de conciliación.
-    Soporta formatos como YYYY/MM/DD, YYYY-MM-DD, y otros.
+    Convierte la columna 'fecha' a formato datetime64 y filtra por el mes de conciliación.
+    Si mes_conciliacion es None, no aplica filtro por mes.
     """
     if 'fecha' not in df.columns:
         st.warning("No se encontró la columna 'fecha' en el DataFrame.")
         return df
     
     try:
-        # Guardar copia de las fechas originales para depuración
+        # Guardar copia de las fechas originales
         df['fecha_original'] = df['fecha'].copy()
-        
-        # Convertir a string para analizar formatos
         df['fecha_str'] = df['fecha'].astype(str).str.strip()
         
-        # Función para detectar formato de una fecha
-        def detectar_formato(fecha_str):
-            if '/' in fecha_str:  # Formato con barras (ej. 2025/02/28)
-                partes = fecha_str.split('/')
-                if len(partes) == 3 and len(partes[0]) == 4:  # YYYY/MM/DD
-                    return 'YYYY/MM/DD'
-            elif '-' in fecha_str:  # Formato con guiones (ej. 2025-02-28)
-                partes = fecha_str.split('-')
-                if len(partes) == 3 and len(partes[0]) == 4:  # YYYY-MM-DD
-                    return 'YYYY-MM-DD'
-            return None
+        # Mostrar fechas crudas para depuración
+        st.write(f"Fechas crudas antes de estandarizar (primeras 5):")
+        st.write(df[['fecha_original', 'fecha_str']].head(5))
         
-        # Analizar las primeras 10 fechas únicas para detectar formato predominante
-        formatos_detectados = {}
-        for fecha_str in df['fecha_str'].dropna().unique()[:10]:
-            formato = detectar_formato(fecha_str)
-            if formato:
-                formatos_detectados[formato] = formatos_detectados.get(formato, 0) + 1
+        # Convertir a datetime con soporte explícito para YYYY/MM/DD
+        df['fecha'] = pd.to_datetime(df['fecha_str'], format='%Y/%m/%d', errors='coerce')
         
-        # Determinar el formato más común
-        if formatos_detectados:
-            formato_predominante = max(formatos_detectados, key=formatos_detectados.get)
-            st.info(f"Formato de fecha predominante detectado: {formato_predominante}")
-        else:
-            formato_predominante = None
-            st.warning("No se pudo detectar un formato predominante. Intentando parseo genérico.")
+        # Si falla el formato YYYY/MM/DD, intentar otros formatos
+        mask_fallas = df['fecha'].isna()
+        if mask_fallas.any():
+            st.warning(f"Se detectaron {mask_fallas.sum()} fechas no parseadas con YYYY/MM/DD. Intentando otros formatos.")
+            df.loc[mask_fallas, 'fecha'] = pd.to_datetime(df.loc[mask_fallas, 'fecha_str'], errors='coerce')
         
-        # Convertir fechas según el formato detectado
-        if formato_predominante == 'YYYY/MM/DD':
-            df['fecha'] = pd.to_datetime(df['fecha_str'], format='%Y/%m/%d', errors='coerce')
-        elif formato_predominante == 'YYYY-MM-DD':
-            df['fecha'] = pd.to_datetime(df['fecha_str'], format='%Y-%m-%d', errors='coerce')
-        else:
-            # Intentar parseo genérico con múltiples formatos
-            df['fecha'] = pd.to_datetime(df['fecha_str'], errors='coerce')
-        
-        # Reportar fechas que no se pudieron parsear
+        # Reportar fechas inválidas
         fechas_invalidas = df['fecha'].isna().sum()
         if fechas_invalidas > 0:
             st.warning(f"Se encontraron {fechas_invalidas} fechas inválidas que se convirtieron a NaT.")
             st.write("Ejemplos de fechas inválidas:")
             st.write(df[df['fecha'].isna()][['fecha_original', 'fecha_str']].head())
         
-        # Filtrar por mes de conciliación
-        filas_antes = len(df)
-        df = df[df['fecha'].dt.month == mes_conciliacion]
-        if len(df) < filas_antes:
-            st.info(f"Se filtraron {filas_antes - len(df)} registros que no corresponden al mes {mes_conciliacion}.")
+        # Filtrar por mes de conciliación si se proporciona
+        if mes_conciliacion is not None:
+            filas_antes = len(df)
+            df = df[df['fecha'].dt.month == mes_conciliacion]
+            if len(df) < filas_antes:
+                meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 
+                         'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+                st.info(f"Se filtraron {filas_antes - len(df)} registros que no corresponden al mes {meses[mes_conciliacion-1]}.")
+                st.write(f"Registros para el mes {meses[mes_conciliacion-1]}: {len(df)}")
         
         # Mostrar estadísticas
-        meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 
-                 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
-        st.write(f"Registros para el mes {meses[mes_conciliacion-1]}: {len(df)}")
         st.write("Primeras 5 fechas estandarizadas:")
         st.write(df[['fecha', 'fecha_original']].head(5))
         
@@ -222,6 +198,12 @@ def estandarizar_fechas(df, mes_conciliacion):
         st.warning(f"Error al convertir fechas: {e}")
     
     return df
+
+# Determinar mes predominante del auxiliar
+def obtener_mes_predominante(df):
+    if 'fecha' in df.columns and not df['fecha'].isna().all():
+        return df['fecha'].dt.month.mode()[0]
+    return None
 
 def completar_fechas_sin_anio(extracto_df, auxiliar_df):
     """
@@ -827,79 +809,67 @@ def conciliar_banco_completo(extracto_df, auxiliar_df):
     return resultados_finales
 
 def aplicar_formato_excel(writer, resultados_df):
-    """
-    Aplica formato al archivo Excel de resultados usando xlsxwriter.
-    """
-    # Obtener la hoja de cálculo
     worksheet = writer.sheets['Resultados']
     workbook = writer.book
     
-    # Crear formatos
     formato_encabezado = workbook.add_format({
-        'bold': True,
-        'align': 'center',
-        'valign': 'vcenter',
-        'text_wrap': True,
-        'border': 1,
-        'bg_color': '#D9E1F2'  # Azul claro
+        'bold': True, 'align': 'center', 'valign': 'vcenter', 'text_wrap': True,
+        'border': 1, 'bg_color': '#D9E1F2'
     })
-    
     formato_fecha = workbook.add_format({'num_format': 'dd/mm/yyyy'})
     formato_moneda = workbook.add_format({'num_format': '_($* #,##0.00_);_($* (#,##0.00);_($* "-"??_);_(@_)'})
-    formato_no_conciliado = workbook.add_format({'bg_color': '#FFCCCB'})  # Rojo suave
+    formato_no_conciliado = workbook.add_format({'bg_color': '#FFCCCB'})
     
-    # Configurar anchos de columna
-    anchuras = {
-        'fecha': 12,
-        'tercero': 30,
-        'concepto': 30,
-        'monto': 15
-    }
-    
-    # Aplicar anchos
+    anchuras = {'fecha': 12, 'tercero': 30, 'concepto': 30, 'monto': 15}
     for i, col in enumerate(resultados_df.columns):
         ancho = anchuras.get(col.lower(), 14)
         worksheet.set_column(i, i, ancho)
     
-    # Aplicar formato a encabezados
     for i, col in enumerate(resultados_df.columns):
         worksheet.write(0, i, col, formato_encabezado)
     
-    # Congelar la primera fila
     worksheet.freeze_panes(1, 0)
     
-    # Aplicar formato a las celdas por columna
     for i, col in enumerate(resultados_df.columns):
         col_lower = col.lower()
         
-        # Formato para fechas
         if col_lower == 'fecha':
             for row_num in range(1, len(resultados_df) + 1):
-                worksheet.write_datetime(row_num, i, resultados_df.iloc[row_num-1][col], formato_fecha)
+                valor = resultados_df.iloc[row_num-1][col]
+                if pd.isna(valor):
+                    worksheet.write(row_num, i, "", formato_fecha)
+                else:
+                    worksheet.write_datetime(row_num, i, valor, formato_fecha)
         
-        # Formato para montos
         elif col_lower == 'monto':
             for row_num in range(1, len(resultados_df) + 1):
-                worksheet.write_number(row_num, i, resultados_df.iloc[row_num-1][col], formato_moneda)
+                valor = resultados_df.iloc[row_num-1][col]
+                if pd.isna(valor):
+                    worksheet.write(row_num, i, "", formato_moneda)
+                else:
+                    worksheet.write_number(row_num, i, valor, formato_moneda)
         
-        # Formato para estado No Conciliado
         elif col_lower == 'estado':
             for row_num in range(1, len(resultados_df) + 1):
                 estado = resultados_df.iloc[row_num-1][col]
                 if estado == 'No Conciliado':
-                    # Aplicar formato a toda la fila
                     for col_idx in range(len(resultados_df.columns)):
-                        if col_idx == i:  # La celda de estado
+                        if col_idx == i:
                             worksheet.write(row_num, col_idx, estado, formato_no_conciliado)
                         else:
                             valor = resultados_df.iloc[row_num-1][resultados_df.columns[col_idx]]
-                            # Manejar tipos específicos
                             if resultados_df.columns[col_idx].lower() == 'fecha':
                                 formato_combinado = workbook.add_format({'num_format': 'dd/mm/yyyy', 'bg_color': '#FFCCCB'})
-                                worksheet.write_datetime(row_num, col_idx, valor, formato_combinado)
+                                if pd.isna(valor):
+                                    worksheet.write(row_num, col_idx, "", formato_combinado)
+                                else:
+                                    worksheet.write_datetime(row_num, col_idx, valor, formato_combinado)
                             elif resultados_df.columns[col_idx].lower() == 'monto':
                                 formato_combinado = workbook.add_format({'num_format': '_($* #,##0.00_);_($* (#,##0.00);_($* "-"??_);_(@_)', 'bg_color': '#FFCCCB'})
-                                worksheet.write_number(row_num, col_idx, valor, formato_combinado)
+                                if pd.isna(valor):
+                                    worksheet.write(row_num, col_idx, "", formato_combinado)
+                                else:
+                                    worksheet.write_number(row_num, col_idx, valor, formato_combinado)
                             else:
                                 worksheet.write(row_num, col_idx, valor, formato_no_conciliado)
 
@@ -956,6 +926,20 @@ if extracto_file and auxiliar_file:
         extracto_df = estandarizar_fechas_automatico(extracto_df, "Extracto Bancario")
         auxiliar_df = estandarizar_fechas_automatico(auxiliar_df, "Libro Auxiliar")
 
+        # Estandarizar fechas sin filtrar por mes aún
+        extracto_df = estandarizar_fechas(extracto_df, mes_conciliacion=None)
+        auxiliar_df = estandarizar_fechas(auxiliar_df, mes_conciliacion=None)
+
+        # Obtener mes predominante del auxiliar
+        mes_conciliacion = obtener_mes_predominante(auxiliar_df)
+        if mes_conciliacion:
+            st.info(f"Mes predominante detectado en el libro auxiliar: {mes_conciliacion}")
+            # Filtrar ambos DataFrames por el mes predominante
+            extracto_df = estandarizar_fechas(extracto_df, mes_conciliacion=mes_conciliacion)
+            auxiliar_df = estandarizar_fechas(auxiliar_df, mes_conciliacion=mes_conciliacion)
+        else:
+            st.warning("No se pudo determinar el mes predominante. Procesando todos los meses.")
+
         # Mostrar resúmenes de los datos cargados
         st.subheader("Resumen de datos cargados")
         st.write(f"Extracto bancario: {len(extracto_df)} movimientos")
@@ -972,6 +956,12 @@ if extracto_file and auxiliar_file:
 
         # Realizar conciliación
         resultados_df = conciliar_banco_completo(extracto_df, auxiliar_df)
+        st.write("Fechas en resultados_df antes de generar Excel:")
+        st.write(resultados_df[['fecha']].head(10))
+        st.write("Valores NaT en 'fecha':", resultados_df['fecha'].isna().sum())
+        if resultados_df['fecha'].isna().any():
+            st.write("Filas con NaT en 'fecha':")
+            st.write(resultados_df[resultados_df['fecha'].isna()])
 
         # Mostrar resultados
         st.subheader("Resultados de la Conciliación")
