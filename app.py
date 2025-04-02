@@ -749,6 +749,9 @@ if extracto_file and auxiliar_file:
         # Estandarizar las fechas en ambos DataFrames
         extracto_df = estandarizar_fechas_automatico(extracto_df, "Extracto Bancario")
         auxiliar_df = estandarizar_fechas_automatico(auxiliar_df, "Libro Auxiliar")
+
+        # Completar fechas sin año en el extracto
+        extracto_df = completar_fechas_sin_anio(extracto_df, auxiliar_df)
         
         # Mostrar resúmenes de los datos cargados
         st.subheader("Resumen de datos cargados")
