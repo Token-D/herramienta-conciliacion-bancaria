@@ -66,7 +66,7 @@ def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, ma
         st.stop()
         
     # Leer el archivo de Excel sin asumir encabezados, leyendo todas las filas por defecto
-    df = pd.read_excel(archivo, header=None)
+    df = pd.read_excel(archivo, header=None, engine='openpyxl')
     total_filas_inicial = len(df)
     
     # Buscar la fila de encabezados
@@ -755,8 +755,8 @@ meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto
 mes_seleccionado = st.selectbox("Mes a conciliar (opcional):", ["Todos"] + meses)
 mes_conciliacion = meses.index(mes_seleccionado) + 1 if mes_seleccionado != "Todos" else None
 
-extracto_file = st.file_uploader("Subir Extracto Bancario (Excel)", type=["xlsx"])
-auxiliar_file = st.file_uploader("Subir Libro Auxiliar (Excel)", type=["xlsx"])
+extracto_file = st.file_uploader("Subir Extracto Bancario (Excel)", type=["xlsx", "xls"])
+auxiliar_file = st.file_uploader("Subir Libro Auxiliar (Excel)", type=["xlsx", "xls"])
 
 # Inicializar estado de sesión
 if 'invertir_signos' not in st.session_state:
