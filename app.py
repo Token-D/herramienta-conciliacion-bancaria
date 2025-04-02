@@ -414,10 +414,10 @@ def conciliacion_directa(extracto_df, auxiliar_df):
             # Añadir a resultados - entrada del extracto bancario
             resultados.append({
                 'fecha': fila_extracto['fecha'],
-                'monto': fila_extracto['monto'],
                 'tercero': '',
                 'concepto': fila_extracto.get('concepto', ''),
                 'numero_movimiento': fila_extracto.get('numero_movimiento', ''),
+                'monto': fila_extracto['monto'],
                 'origen': 'Banco',
                 'estado': 'Conciliado',
                 'tipo_conciliacion': 'Directa',
@@ -429,10 +429,10 @@ def conciliacion_directa(extracto_df, auxiliar_df):
             # Añadir a resultados - entrada del libro auxiliar
             resultados.append({
                 'fecha': fila_auxiliar['fecha'],
-                'monto': fila_auxiliar['monto'],
                 'tercero': fila_auxiliar.get('tercero', ''),
                 'concepto': fila_auxiliar.get('nota', ''),
                 'numero_movimiento': fila_auxiliar.get('numero_movimiento', ''),
+                'monto': fila_auxiliar['monto'],
                 'origen': 'Libro Auxiliar',
                 'estado': 'Conciliado',
                 'tipo_conciliacion': 'Directa',
@@ -446,9 +446,10 @@ def conciliacion_directa(extracto_df, auxiliar_df):
         if idx_extracto not in extracto_conciliado_idx:
             resultados.append({
                 'fecha': fila_extracto["fecha"],
-                'monto': fila_extracto["monto"],
+                'tercero': '',
                 'concepto': fila_extracto.get("concepto", ""),
                 'numero_movimiento': fila_extracto.get("numero_movimiento", ""),
+                'monto': fila_extracto["monto"],
                 'origen': 'Banco',
                 'estado': 'No Conciliado',
                 'tipo_conciliacion': '',
@@ -462,10 +463,10 @@ def conciliacion_directa(extracto_df, auxiliar_df):
         if idx_auxiliar not in auxiliar_conciliado_idx:
             resultados.append({
                 'fecha': fila_auxiliar["fecha"],
-                'monto': fila_auxiliar["monto"],
                 'tercero': fila_auxiliar.get('tercero', ''),
                 'concepto': fila_auxiliar.get("nota", ""),
                 'numero_movimiento': fila_auxiliar.get("numero_movimiento", ""),
+                'monto': fila_auxiliar["monto"],
                 'origen': 'Libro Auxiliar',
                 'estado': 'No Conciliado',
                 'tipo_conciliacion': '',
@@ -510,9 +511,10 @@ def conciliacion_agrupacion_auxiliar(extracto_df, auxiliar_df, extracto_concilia
             # Añadir a resultados - Movimiento del extracto
             resultados.append({
                 'fecha': fila_extracto["fecha"],
-                'monto': fila_extracto["monto"],
+                'tercero': '',
                 'concepto': fila_extracto.get("concepto", ""),
                 'numero_movimiento': fila_extracto.get("numero_movimiento", ""),
+                'monto': fila_extracto["monto"],
                 'origen': 'Banco',
                 'estado': 'Conciliado',
                 'tipo_conciliacion': 'Agrupación en Libro Auxiliar',
@@ -526,9 +528,10 @@ def conciliacion_agrupacion_auxiliar(extracto_df, auxiliar_df, extracto_concilia
                 fila_aux = auxiliar_no_conciliado.loc[idx_aux]
                 resultados.append({
                     'fecha': fila_aux["fecha"],
-                    'monto': fila_aux["monto"],
+                    'tercero': fila_aux.get("tercero", ""),
                     'concepto': fila_aux.get("nota", ""),
                     'numero_movimiento': fila_aux.get("numero_movimiento", ""),
+                    'monto': fila_aux["monto"],
                     'origen': 'Libro Auxiliar',
                     'estado': 'Conciliado',
                     'tipo_conciliacion': 'Agrupación en Libro Auxiliar',
@@ -573,10 +576,10 @@ def conciliacion_agrupacion_extracto(extracto_df, auxiliar_df, extracto_concilia
             # Añadir a resultados - Movimiento del libro auxiliar
             resultados.append({
                 'fecha': fila_auxiliar["fecha"],
-                'monto': fila_auxiliar["monto"],
                 'tercero': fila_auxiliar.get('tercero', ''),
                 'concepto': fila_auxiliar.get("nota", ""),
                 'numero_movimiento': fila_auxiliar.get("numero_movimiento", ""),
+                'monto': fila_auxiliar["monto"],
                 'origen': 'Libro Auxiliar',
                 'estado': 'Conciliado',
                 'tipo_conciliacion': 'Agrupación en Extracto Bancario',
@@ -590,10 +593,10 @@ def conciliacion_agrupacion_extracto(extracto_df, auxiliar_df, extracto_concilia
                 fila_ext = extracto_no_conciliado.loc[idx_ext]
                 resultados.append({
                     'fecha': fila_ext["fecha"],
-                    'monto': fila_ext["monto"],
                     'tercero': '',
                     'concepto': fila_ext.get("concepto", ""),
                     'numero_movimiento': fila_ext.get("numero_movimiento", ""),
+                    'monto': fila_ext["monto"],
                     'origen': 'Banco',
                     'estado': 'Conciliado',
                     'tipo_conciliacion': 'Agrupación en Extracto Bancario',
