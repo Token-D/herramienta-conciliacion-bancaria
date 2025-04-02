@@ -41,7 +41,7 @@ def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, ma
     fila_encabezados = buscar_fila_encabezados(df, columnas_esperadas, max_filas)
     if fila_encabezados is None:
         st.error(f"No se encontraron los encabezados necesarios en el archivo {nombre_archivo}.")
-        st.error(f"Se buscaron en las primeras {max_filas} filas. Se requieren al menos la columna fecha y columnas de montos.")
+        st.error(f"Se buscaron en las primeras {max_filas} filas. Se requieren al menos 'fecha' y una columna de monto (monto, debitos o creditos).")
         st.stop()
 
     st.success(f"Encabezados encontrados en la fila {fila_encabezados + 1} del archivo {nombre_archivo}.")
@@ -51,49 +51,53 @@ def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, ma
     total_filas_datos = len(df)
     st.write(f"Filas leídas después de establecer encabezados en {nombre_archivo}: {total_filas_datos}")
 
-    # Buscar la columna 'Doc Num' entre las variantes posibles antes de normalizar
+    # Buscar la columna 'doc. num' o 'numero_movimiento' antes de normalizar (solo si aplica)
     doc_num_col = None
-    if 'Doc Num' in columnas_esperadas:
-        variantes_doc_num = columnas_esperadas.get('Doc Num', ["Doc Num"])  # Obtener variantes de columnas_esperadas
+    if 'doc. num' in columnas_esperadas:  # Para el libro auxiliar
+        variantes_doc_num = columnas_esperadas.get('doc. num', ["doc. num"])
         for col in df.columns:
             col_lower = str(col).lower().strip()
             if any(variante.lower().strip() in col_lower for variante in variantes_doc_num):
                 doc_num_col = col
                 break
-    
-    if 'numero_movimiento' in columnas_esperadas:
-        variantes_doc_num = columnas_esperadas.get('numero_movimiento', ["numero_movimiento"])
+    elif 'numero_movimiento' in columnas_esperadas:  # Para el extracto, opcional
+        variantes_num_mov = columnas_esperadas.get('numero_movimiento', ["numero_movimiento"])
         for col in df.columns:
             col_lower = str(col).lower().strip()
-            if any(variante.lower().strip() in col_lower for variante in variantes_doc_num):
+            if any(variante.lower().strip() in col_lower for variante in variantes_num_mov):
                 doc_num_col = col
                 break
     
-    # Filtrar filas donde 'Doc Num' no esté vacío
-    if doc_num_col:
+    # Filtrar filas donde 'doc. num' o 'numero_movimiento' no esté vacío (solo si se requiere)
+    if doc_num_col and 'doc. num' in columnas_esperadas:  # Solo aplicar filtro para libro auxiliar
         filas_antes = len(df)
-        # Eliminar filas donde 'Doc Num' sea NaN, None o cadena vacía
         df = df[df[doc_num_col].notna() & (df[doc_num_col] != '')]
         filas_despues = len(df)
         st.write(f"Filas después de eliminar las que tienen '{doc_num_col}' vacío en {nombre_archivo}: {filas_despues}")
         if filas_antes > filas_despues:
             st.info(f"Se eliminaron {filas_antes - filas_despues} filas con '{doc_num_col}' vacío.")
+    elif doc_num_col:
+        st.info(f"Se encontró '{doc_num_col}' en {nombre_archivo}, pero no se aplicó filtro (opcional).")
     else:
-        st.warning(f"No se encontró una columna tipo 'Doc Num' o 'numero_movimiento' en {nombre_archivo} antes de normalizar. No se aplicó filtro.")
+        st.warning(f"No se encontró una columna tipo 'doc. num' o 'numero_movimiento' en {nombre_archivo} antes de normalizar.")
     
     # Normalizar las columnas
     df = normalizar_dataframe(df, columnas_esperadas)
     
-    # Verificar si el DataFrame tiene al menos las columnas mínimas necesarias (fecha)
+    # Verificar si el DataFrame tiene al menos las columnas mínimas necesarias
     if 'fecha' not in df.columns:
         st.error(f"La columna obligatoria 'fecha' no se encontró en los datos leídos del archivo '{nombre_archivo}'.")
         st.stop()
     
-    # Verificar si existe al menos una columna de monto o débito/crédito
-    if 'monto' not in df.columns and ('debitos' not in df.columns and 'creditos' not in df.columns):
+    # Verificar si existe al menos una columna de monto
+    if 'monto' not in df.columns and ('debitos' not in df.columns or 'creditos' not in df.columns):
         st.error(f"No se encontró ninguna columna de monto (monto, debitos o creditos) en el archivo '{nombre_archivo}'.")
         st.stop()
- 
+    
+    # Mostrar columnas detectadas (para depuración)
+    columnas_encontradas = [col for col in columnas_esperadas.keys() if col in df.columns]
+    st.info(f"Columnas encontradas en {nombre_archivo} después de normalizar: {columnas_encontradas}")
+    
     return df
 
 # Función para normalizar un DataFrame
