@@ -764,7 +764,11 @@ tipos_aceptados = [
     "application/octet-stream"  # Por si el navegador lo detecta genéricamente
 ]
 extracto_file = st.file_uploader("Subir Extracto Bancario (Excel)", type=tipos_aceptados)
+if extracto_file:
+    st.write(f"Tipo MIME del archivo subido (Extracto): {extracto_file.type}")
 auxiliar_file = st.file_uploader("Subir Libro Auxiliar (Excel)", type=tipos_aceptados)
+if auxiliar_file:
+    st.write(f"Tipo MIME del archivo subido (Auxiliar): {auxiliar_file.type}")
 
 # Inicializar estado de sesión
 if 'invertir_signos' not in st.session_state:
