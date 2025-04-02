@@ -766,8 +766,6 @@ tipos_aceptados = [
 # Aceptar cualquier tipo y validar manualmente
 extracto_file = st.file_uploader("Subir Extracto Bancario (Excel)")  # Sin type=
 if extracto_file:
-    st.write(f"Tipo MIME detectado para Extracto: {extracto_file.type}")
-    st.write(f"Nombre del archivo: {extracto_file.name}")
     extension = extracto_file.name.split('.')[-1].lower()
     if extension not in ['xls', 'xlsx']:
         st.error(f"Formato no soportado para Extracto: {extension}. Usa .xls o .xlsx.")
@@ -775,8 +773,6 @@ if extracto_file:
 
 auxiliar_file = st.file_uploader("Subir Libro Auxiliar (Excel)")  # Sin type=
 if auxiliar_file:
-    st.write(f"Tipo MIME detectado para Auxiliar: {auxiliar_file.type}")
-    st.write(f"Nombre del archivo: {auxiliar_file.name}")
     extension = auxiliar_file.name.split('.')[-1].lower()
     if extension not in ['xls', 'xlsx']:
         st.error(f"Formato no soportado para Auxiliar: {extension}. Usa .xls o .xlsx.")
