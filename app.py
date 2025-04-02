@@ -375,29 +375,45 @@ def encontrar_combinaciones(df, monto_objetivo, tolerancia=0.01, max_combinacion
 def conciliacion_directa(extracto_df, auxiliar_df):
     """
     Realiza la conciliación directa entre el extracto bancario y el libro auxiliar.
-    Busca coincidencias en fecha (solo día, mes, año) y monto.
+    Empareja registros por fecha y monto, asegurando una relación 1:1 sin reutilizar registros.
+    El numero_movimiento puede repetirse y no se usa como criterio de unicidad.
     """
     resultados = []
     extracto_conciliado_idx = set()
     auxiliar_conciliado_idx = set()
     
-    # Crear versiones de las fechas sin hora para comparación
+    # Crear copias para no modificar los DataFrames originales
+    extracto_df = extracto_df.copy()
+    auxiliar_df = auxiliar_df.copy()
     extracto_df['fecha_solo'] = extracto_df['fecha'].dt.date
     auxiliar_df['fecha_solo'] = auxiliar_df['fecha'].dt.date
     
-    # Para cada fila en el extracto
+    # Diagnóstico de fechas
+    st.subheader("Diagnóstico de fechas")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.write("Fechas en extracto (primeras 5):")
+        st.write(extracto_df[['fecha', 'fecha_solo']].head())
+    with col2:
+        st.write("Fechas en auxiliar (primeras 5):")
+        st.write(auxiliar_df[['fecha', 'fecha_solo']].head())
+    
+    # Iterar sobre el extracto
     for idx_extracto, fila_extracto in extracto_df.iterrows():
-        # Buscar coincidencias en el libro auxiliar usando fecha_solo
-        if pd.isna(fila_extracto['fecha_solo']):
+        if idx_extracto in extracto_conciliado_idx or pd.isna(fila_extracto['fecha_solo']):
             continue
-            
-        coincidencias = auxiliar_df[
-            (auxiliar_df['fecha_solo'] == fila_extracto['fecha_solo']) & 
-            (abs(auxiliar_df['monto'] - fila_extracto['monto']) < 0.01)
+        
+        # Filtrar registros del auxiliar no conciliados
+        auxiliar_no_conciliado = auxiliar_df[~auxiliar_df.index.isin(auxiliar_conciliado_idx)]
+        
+        # Buscar coincidencias por fecha y monto
+        coincidencias = auxiliar_no_conciliado[
+            (auxiliar_no_conciliado['fecha_solo'] == fila_extracto['fecha_solo']) & 
+            (abs(auxiliar_no_conciliado['monto'] - fila_extracto['monto']) < 0.01)
         ]
         
         if not coincidencias.empty:
-            # Tomar la primera coincidencia
+            # Tomar el primer registro no conciliado del auxiliar
             idx_auxiliar = coincidencias.index[0]
             fila_auxiliar = coincidencias.iloc[0]
             
@@ -405,7 +421,7 @@ def conciliacion_directa(extracto_df, auxiliar_df):
             extracto_conciliado_idx.add(idx_extracto)
             auxiliar_conciliado_idx.add(idx_auxiliar)
             
-            # Añadir a resultados - entrada del extracto bancario
+            # Añadir entrada del extracto bancario
             resultados.append({
                 'fecha': fila_extracto['fecha'],
                 'tercero': '',
@@ -416,11 +432,11 @@ def conciliacion_directa(extracto_df, auxiliar_df):
                 'estado': 'Conciliado',
                 'tipo_conciliacion': 'Directa',
                 'doc_conciliacion': fila_auxiliar.get('numero_movimiento', ''),
-                'index_original': idx_extracto,  # Guardar índice original
+                'index_original': idx_extracto,
                 'tipo_registro': 'extracto'
             })
 
-            # Añadir a resultados - entrada del libro auxiliar
+            # Añadir entrada del libro auxiliar
             resultados.append({
                 'fecha': fila_auxiliar['fecha'],
                 'tercero': fila_auxiliar.get('tercero', ''),
@@ -431,11 +447,11 @@ def conciliacion_directa(extracto_df, auxiliar_df):
                 'estado': 'Conciliado',
                 'tipo_conciliacion': 'Directa',
                 'doc_conciliacion': fila_extracto.get('numero_movimiento', ''),
-                'index_original': idx_auxiliar,  # Guardar índice original
+                'index_original': idx_auxiliar,
                 'tipo_registro': 'auxiliar'
             })
     
-    # Registros no conciliados del extracto bancario
+    # Agregar registros no conciliados del extracto
     for idx_extracto, fila_extracto in extracto_df.iterrows():
         if idx_extracto not in extracto_conciliado_idx:
             resultados.append({
@@ -448,11 +464,11 @@ def conciliacion_directa(extracto_df, auxiliar_df):
                 'estado': 'No Conciliado',
                 'tipo_conciliacion': '',
                 'doc_conciliacion': '',
-                'index_original': idx_extracto,  # Guardar índice original
+                'index_original': idx_extracto,
                 'tipo_registro': 'extracto'
             })
     
-    # Registros no conciliados del libro auxiliar
+    # Agregar registros no conciliados del libro auxiliar
     for idx_auxiliar, fila_auxiliar in auxiliar_df.iterrows():
         if idx_auxiliar not in auxiliar_conciliado_idx:
             resultados.append({
@@ -465,11 +481,13 @@ def conciliacion_directa(extracto_df, auxiliar_df):
                 'estado': 'No Conciliado',
                 'tipo_conciliacion': '',
                 'doc_conciliacion': '',
-                'index_original': idx_auxiliar,  # Guardar índice original
+                'index_original': idx_auxiliar,
                 'tipo_registro': 'auxiliar'
             })
     
-    return pd.DataFrame(resultados), extracto_conciliado_idx, auxiliar_conciliado_idx
+    resultados_df = pd.DataFrame(resultados)
+    st.write(f"Total conciliados en directa: {len(extracto_conciliado_idx)} extracto, {len(auxiliar_conciliado_idx)} auxiliar")
+    return resultados_df, extracto_conciliado_idx, auxiliar_conciliado_idx
 
 # Función para la conciliación por agrupación en el libro auxiliar
 def conciliacion_agrupacion_auxiliar(extracto_df, auxiliar_df, extracto_conciliado_idx, auxiliar_conciliado_idx):
