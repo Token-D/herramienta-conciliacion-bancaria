@@ -789,13 +789,13 @@ if extracto_file and auxiliar_file:
         # Procesar datos del libro auxiliar
         auxiliar_df = procesar_montos_auxiliar(auxiliar_df)
         
+        # Completar fechas sin año en el extracto
+        extracto_df = completar_fechas_sin_anio(extracto_df, auxiliar_df)
+        
         # Estandarizar las fechas en ambos DataFrames
         extracto_df = estandarizar_fechas_automatico(extracto_df, "Extracto Bancario")
         auxiliar_df = estandarizar_fechas_automatico(auxiliar_df, "Libro Auxiliar")
 
-        # Completar fechas sin año en el extracto
-        extracto_df = completar_fechas_sin_anio(extracto_df, auxiliar_df)
-        
         # Mostrar resúmenes de los datos cargados
         st.subheader("Resumen de datos cargados")
         st.write(f"Extracto bancario: {len(extracto_df)} movimientos")
