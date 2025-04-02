@@ -963,13 +963,13 @@ if extracto_file and auxiliar_file:
         st.write(resultados_df)
 
         # Generar archivo de resultados
-def generar_excel(resultados_df):
-    output = BytesIO()
-    with pd.ExcelWriter(output, engine="xlsxwriter") as writer:  # Cambiar a xlsxwriter
-        resultados_df.to_excel(writer, sheet_name="Resultados", index=False)
-        aplicar_formato_excel(writer, resultados_df)
-    output.seek(0)
-    return output
+        def generar_excel(resultados_df):
+            output = BytesIO()
+            with pd.ExcelWriter(output, engine="xlsxwriter") as writer:  # Cambiar a xlsxwriter
+                resultados_df.to_excel(writer, sheet_name="Resultados", index=False)
+                aplicar_formato_excel(writer, resultados_df)
+            output.seek(0)
+            return output
 
         # Botón para descargar resultados
         excel_data = generar_excel(resultados_df)
