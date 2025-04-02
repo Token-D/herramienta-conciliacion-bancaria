@@ -51,8 +51,8 @@ def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, ma
     total_filas_datos = len(df)
     st.write(f"Filas leídas después de establecer encabezados en {nombre_archivo}: {total_filas_datos}")
 
-    # Buscar la columna 'doc. num' entre las variantes posibles antes de normalizar
-    variantes_doc_num = columnas_esperadas.get('doc. num', ["doc. num"])  # Obtener variantes de columnas_esperadas
+    # Buscar la columna 'Doc Num' entre las variantes posibles antes de normalizar
+    variantes_doc_num = columnas_esperadas.get('Doc Num', ["Doc Num"])  # Obtener variantes de columnas_esperadas
     doc_num_col = None
     for col in df.columns:
         col_lower = str(col).lower().strip()
@@ -60,17 +60,17 @@ def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, ma
             doc_num_col = col
             break
     
-    # Filtrar filas donde 'doc. num' no esté vacío
+    # Filtrar filas donde 'Doc Num' no esté vacío
     if doc_num_col:
         filas_antes = len(df)
-        # Eliminar filas donde 'doc. num' sea NaN, None o cadena vacía
+        # Eliminar filas donde 'Doc Num' sea NaN, None o cadena vacía
         df = df[df[doc_num_col].notna() & (df[doc_num_col] != '')]
         filas_despues = len(df)
         st.write(f"Filas después de eliminar las que tienen '{doc_num_col}' vacío en {nombre_archivo}: {filas_despues}")
         if filas_antes > filas_despues:
             st.info(f"Se eliminaron {filas_antes - filas_despues} filas con '{doc_num_col}' vacío.")
     else:
-        st.warning(f"No se encontró una columna tipo 'doc. num' en {nombre_archivo} antes de normalizar. No se aplicó filtro.")
+        st.warning(f"No se encontró una columna tipo 'Doc Num' en {nombre_archivo} antes de normalizar. No se aplicó filtro.")
     
     # Normalizar las columnas
     df = normalizar_dataframe(df, columnas_esperadas)
