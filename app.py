@@ -755,8 +755,16 @@ meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto
 mes_seleccionado = st.selectbox("Mes a conciliar (opcional):", ["Todos"] + meses)
 mes_conciliacion = meses.index(mes_seleccionado) + 1 if mes_seleccionado != "Todos" else None
 
-extracto_file = st.file_uploader("Subir Extracto Bancario (Excel)", type=["xlsx", "xls"])
-auxiliar_file = st.file_uploader("Subir Libro Auxiliar (Excel)", type=["xlsx", "xls"])
+# Aceptar .xls y .xlsx con MIME types explícitos
+tipos_aceptados = [
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",  # .xlsx
+    "application/vnd.ms-excel",  # .xls
+    "application/excel",  # Variante para .xls
+    "application/x-excel",  # Otra variante para .xls
+    "application/x-msexcel"  # Otra variante para .xls
+]
+extracto_file = st.file_uploader("Subir Extracto Bancario (Excel)", type=tipos_aceptados)
+auxiliar_file = st.file_uploader("Subir Libro Auxiliar (Excel)", type=tipos_aceptados)
 
 # Inicializar estado de sesión
 if 'invertir_signos' not in st.session_state:
