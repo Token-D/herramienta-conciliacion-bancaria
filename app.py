@@ -755,26 +755,29 @@ mes_conciliacion = meses.index(mes_seleccionado) + 1 if mes_seleccionado != "Tod
 extracto_file = st.file_uploader("Subir Extracto Bancario (Excel)", type=["xlsx"])
 auxiliar_file = st.file_uploader("Subir Libro Auxiliar (Excel)", type=["xlsx"])
 
-if extracto_file and auxiliar_file:
-    try:
-        # Definir las columnas esperadas y sus posibles variantes
-        columnas_esperadas_extracto = {
-            "fecha": ["fecha de operación", "fecha", "date", "fecha_operacion", "f. operación"],
-            "monto": ["importe (cop)", "monto", "amount", "importe"],
-            "concepto": ["concepto", "descripción", "concepto banco", "descripcion", "transacción", "transaccion"],
-            "numero_movimiento": ["número de movimiento", "numero de movimiento", "movimiento", "no. movimiento", "num", "nro. documento"],
-            "debitos": ["debitos", "débitos", "debe", "cargo", "cargos", "valor débito"],
-            "creditos": ["creditos", "créditos", "haber", "abono", "abonos", "valor crédito"]
-        }
+# Inicializar estado de sesión
+if 'invertir_signos' not in st.session_state:
+    st.session_state.invertir_signos = False
 
-        columnas_esperadas_auxiliar = {
-            "fecha": ["fecha", "date", "fecha de operación", "fecha_operacion", "f. operación"],
-            "debitos": ["debitos", "débitos", "debe", "cargo", "cargos", "valor débito"],
-            "creditos": ["creditos", "créditos", "haber", "abono", "abonos", "valor crédito"],
-            "nota": ["nota", "nota libro auxiliar", "descripción", "observaciones", "descripcion"],
-            "numero_movimiento": ["doc num", "doc. num", "documento", "número documento", "numero documento", "nro. documento"],
-            "tercero": ["tercero", "Tercero","proveedor"]
-        }
+def realizar_conciliacion(extracto_file, auxiliar_file, mes_conciliacion, invertir_signos):
+    # Definir columnas esperadas
+    columnas_esperadas_extracto = {
+        "fecha": ["fecha de operación", "fecha", "date", "fecha_operacion", "f. operación"],
+        "monto": ["importe (cop)", "monto", "amount", "importe"],
+        "concepto": ["concepto", "descripción", "concepto banco", "descripcion", "transacción", "transaccion"],
+        "numero_movimiento": ["número de movimiento", "numero de movimiento", "movimiento", "no. movimiento", "num", "nro. documento"],
+        "debitos": ["debitos", "débitos", "debe", "cargo", "cargos", "valor débito"],
+        "creditos": ["creditos", "créditos", "haber", "abono", "abonos", "valor crédito"]
+    }
+
+    columnas_esperadas_auxiliar = {
+        "fecha": ["fecha", "date", "fecha de operación", "fecha_operacion", "f. operación"],
+        "debitos": ["debitos", "débitos", "debe", "cargo", "cargos", "valor débito"],
+        "creditos": ["creditos", "créditos", "haber", "abono", "abonos", "valor crédito"],
+        "nota": ["nota", "nota libro auxiliar", "descripción", "observaciones", "descripcion"],
+        "numero_movimiento": ["doc num", "doc. num", "documento", "número documento", "numero documento", "nro. documento"],
+        "tercero": ["tercero", "Tercero", "proveedor"]
+    }
 
         # Leer los datos a partir de la fila de encabezados
         extracto_df = leer_datos_desde_encabezados(extracto_file, columnas_esperadas_extracto, "Extracto Bancario", max_filas=30)
