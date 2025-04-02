@@ -38,8 +38,33 @@ def buscar_fila_encabezados(df, columnas_esperadas, max_filas=30):
             return idx
 
     return None
+    
 # Función para leer datos a partir de la fila de encabezados
 def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, max_filas=30):
+    # Determinar la extensión del archivo
+    extension = archivo.name.split('.')[-1].lower()
+    
+    # Si es .xls, convertir a .xlsx
+    if extension == 'xls':
+        st.info(f"El archivo {nombre_archivo} es .xls. Convirtiendo a .xlsx para procesamiento...")
+        try:
+            # Leer el archivo .xls con xlrd
+            df_temp = pd.read_excel(archivo, header=None, engine='xlrd')
+            # Guardar como .xlsx en un buffer
+            output = BytesIO()
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                df_temp.to_excel(writer, index=False, header=None)
+            output.seek(0)
+            # Actualizar el archivo a usar
+            archivo = output
+            st.success(f"Conversión de {nombre_archivo} de .xls a .xlsx completada.")
+        except Exception as e:
+            st.error(f"Error al convertir {nombre_archivo} de .xls a .xlsx: {e}")
+            st.stop()
+    elif extension != 'xlsx':
+        st.error(f"Formato de archivo no soportado: {extension}. Usa .xls o .xlsx.")
+        st.stop()
+        
     # Leer el archivo de Excel sin asumir encabezados, leyendo todas las filas por defecto
     df = pd.read_excel(archivo, header=None)
     total_filas_inicial = len(df)
