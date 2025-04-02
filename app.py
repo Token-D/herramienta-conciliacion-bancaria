@@ -59,35 +59,26 @@ def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, ma
     total_filas_datos = len(df)
     st.write(f"Filas leídas después de establecer encabezados en {nombre_archivo}: {total_filas_datos}")
 
-    # Buscar la columna 'doc. num' o 'numero_movimiento' antes de normalizar (solo si aplica)
+    # Buscar la columna 'Doc Num' entre las variantes posibles antes de normalizar
+    variantes_doc_num = columnas_esperadas.get('Doc Num', ["Doc Num"])  # Obtener variantes de columnas_esperadas
     doc_num_col = None
-    if 'doc. num' in columnas_esperadas:  # Para el libro auxiliar
-        variantes_doc_num = columnas_esperadas.get('doc. num', ["doc. num"])
-        for col in df.columns:
-            col_lower = str(col).lower().strip()
-            if any(variante.lower().strip() in col_lower for variante in variantes_doc_num):
-                doc_num_col = col
-                break
-    elif 'numero_movimiento' in columnas_esperadas:  # Para el extracto, opcional
-        variantes_num_mov = columnas_esperadas.get('numero_movimiento', ["numero_movimiento"])
-        for col in df.columns:
-            col_lower = str(col).lower().strip()
-            if any(variante.lower().strip() in col_lower for variante in variantes_num_mov):
-                doc_num_col = col
-                break
+    for col in df.columns:
+        col_lower = str(col).lower().strip()
+        if any(variante.lower().strip() in col_lower for variante in variantes_doc_num):
+            doc_num_col = col
+            break
     
-    # Filtrar filas donde 'doc. num' o 'numero_movimiento' no esté vacío (solo si se requiere)
-    if doc_num_col and 'doc. num' in columnas_esperadas:  # Solo aplicar filtro para libro auxiliar
+    # Filtrar filas donde 'Doc Num' no esté vacío
+    if doc_num_col:
         filas_antes = len(df)
+        # Eliminar filas donde 'Doc Num' sea NaN, None o cadena vacía
         df = df[df[doc_num_col].notna() & (df[doc_num_col] != '')]
         filas_despues = len(df)
         st.write(f"Filas después de eliminar las que tienen '{doc_num_col}' vacío en {nombre_archivo}: {filas_despues}")
         if filas_antes > filas_despues:
             st.info(f"Se eliminaron {filas_antes - filas_despues} filas con '{doc_num_col}' vacío.")
-    elif doc_num_col:
-        st.info(f"Se encontró '{doc_num_col}' en {nombre_archivo}, pero no se aplicó filtro (opcional).")
     else:
-        st.warning(f"No se encontró una columna tipo 'doc. num' o 'numero_movimiento' en {nombre_archivo} antes de normalizar.")
+        st.warning(f"No se encontró una columna tipo 'Doc Num' en {nombre_archivo} antes de normalizar. No se aplicó filtro.")
     
     # Normalizar las columnas
     df = normalizar_dataframe(df, columnas_esperadas)
