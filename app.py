@@ -6,30 +6,38 @@ from itertools import combinations
 # Función para buscar la fila de encabezados
 def buscar_fila_encabezados(df, columnas_esperadas, max_filas=30):
     """
-    Busca la fila que contiene los nombres de las columnas esperadas.
+    Busca la fila que contiene al menos 'fecha' y una columna de monto (monto, debitos o creditos).
+    Otras columnas son opcionales.
     """
-    # Convertir las variantes de los encabezados a minúsculas
-    columnas_esperadas_lower = {col: [variante.lower() for variante in variantes] for col, variantes in columnas_esperadas.items()}
+    columnas_esperadas_lower = {col: [variante.lower() for variante in variantes] 
+                                for col, variantes in columnas_esperadas.items()}
 
     for idx in range(min(max_filas, len(df))):
         fila = df.iloc[idx]
         celdas = [str(valor).lower() for valor in fila if pd.notna(valor)]
 
-        # Variables para verificar coincidencias
-        encontrados = {col: False for col in columnas_esperadas.keys()}
+        # Variables para verificar coincidencias mínimas
+        tiene_fecha = False
+        tiene_monto = False
 
         # Revisar cada celda en la fila
         for celda in celdas:
-            for col, variantes in columnas_esperadas_lower.items():
-                if any(variante in celda for variante in variantes):
-                    encontrados[col] = True
+            # Verificar 'fecha'
+            if 'fecha' in columnas_esperadas_lower and any(variante in celda for variante in columnas_esperadas_lower['fecha']):
+                tiene_fecha = True
+            # Verificar columnas de monto (monto, debitos o creditos)
+            if 'monto' in columnas_esperadas_lower and any(variante in celda for variante in columnas_esperadas_lower['monto']):
+                tiene_monto = True
+            elif 'debitos' in columnas_esperadas_lower and any(variante in celda for variante in columnas_esperadas_lower['debitos']):
+                tiene_monto = True
+            elif 'creditos' in columnas_esperadas_lower and any(variante in celda for variante in columnas_esperadas_lower['creditos']):
+                tiene_monto = True
 
-        # Si se encuentran todos los encabezados necesarios en la misma fila
-        if all(encontrados.values()):
+        # Si se encuentran los mínimos necesarios (fecha y algún monto)
+        if tiene_fecha and tiene_monto:
             return idx
 
     return None
-
 # Función para leer datos a partir de la fila de encabezados
 def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, max_filas=30):
     # Leer el archivo de Excel sin asumir encabezados, leyendo todas las filas por defecto
