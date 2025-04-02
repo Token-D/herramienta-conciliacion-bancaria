@@ -258,11 +258,6 @@ def completar_fechas_sin_anio(extracto_df, auxiliar_df):
     filas_antes = len(extracto_df)
     extracto_df['fecha'] = extracto_df['fecha'].apply(lambda x: parsear_fecha(x, año_predominante))
     
-    # Eliminar filas con fechas inválidas (opcional, según tu necesidad)
-    extracto_df = extracto_df.dropna(subset=['fecha'])
-    if len(extracto_df) < filas_antes:
-        st.warning(f"Se eliminaron {filas_antes - len(extracto_df)} filas con fechas inválidas después de completar.")
-    
     # Mostrar un mensaje si se ajustaron fechas
     fechas_ajustadas = extracto_df['fecha'].dt.year == año_predominante
     if fechas_ajustadas.any():
