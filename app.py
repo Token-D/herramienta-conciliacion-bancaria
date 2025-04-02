@@ -408,6 +408,54 @@ def procesar_montos_auxiliar(df):
     
     return df
 
+# Función para procesar los montos del extracto
+def procesar_montos_universal(df, es_extracto=False):
+    """
+    Procesa las columnas de débitos y créditos para obtener una columna de monto unificada.
+    Para extractos bancarios, los créditos son positivos y débitos negativos.
+    """
+    # Si ya existe una columna de monto con valores válidos, la mantenemos
+    if "monto" in df.columns and df["monto"].notna().any() and (df["monto"] != 0).any():
+        st.success("Columna de monto encontrada con valores válidos.")
+        return df
+    
+    # Buscar columnas de débitos y créditos (case insensitive)
+    columnas = df.columns.str.lower()
+    cols_debito = [col for col in df.columns if any(term in col.lower() for term in ["deb", "debe", "cargo"])]
+    cols_credito = [col for col in df.columns if any(term in col.lower() for term in ["cred", "haber", "abono"])]
+    
+    # Si encontramos columnas de débito o crédito
+    if cols_debito or cols_credito:
+        # Crear nueva columna monto
+        df["monto"] = 0.0
+        
+        # Definir el signo según el origen (extracto o auxiliar)
+        # En extractos: débitos son negativos, créditos positivos
+        # En auxiliar: débito positivo, crédito negativo
+        signo_debito = -1 if es_extracto else 1
+        signo_credito = 1 if es_extracto else -1
+        
+        # Para cada columna de débito
+        for col in cols_debito:
+            try:
+                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+                df["monto"] += df[col] * signo_debito
+            except Exception as e:
+                st.warning(f"Error al procesar la columna de débito '{col}': {e}")
+        
+        # Para cada columna de crédito
+        for col in cols_credito:
+            try:
+                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+                df["monto"] += df[col] * signo_credito
+            except Exception as e:
+                st.warning(f"Error al procesar la columna de crédito '{col}': {e}")
+    else:
+        if "monto" not in df.columns:
+            st.warning("No se encontraron columnas de monto, débito o crédito.")
+    
+    return df
+
 # Función para encontrar combinaciones que sumen un monto específico
 def encontrar_combinaciones(df, monto_objetivo, tolerancia=0.01, max_combinacion=4):
     """
@@ -749,6 +797,83 @@ def conciliar_banco_completo(extracto_df, auxiliar_df):
     
     return resultados_finales
 
+def aplicar_formato_excel(writer, resultados_df):
+    """
+    Aplica formato al archivo Excel de resultados
+    """
+    # Obtener la hoja de cálculo
+    worksheet = writer.sheets['Resultados']
+    workbook = writer.book
+    
+    # Crear formatos
+    formato_encabezado = workbook.add_format({
+        'bold': True,
+        'align': 'center',
+        'valign': 'vcenter',
+        'text_wrap': True,
+        'border': 1,
+        'bg_color': '#D9E1F2'  # Azul claro
+    })
+    
+    formato_fecha = workbook.add_format({'num_format': 'dd/mm/yyyy'})
+    formato_moneda = workbook.add_format({'num_format': '_($* #,##0.00_);_($* (#,##0.00);_($* "-"??_);_(@_)'})
+    formato_no_conciliado = workbook.add_format({'bg_color': '#FFCCCB'})  # Rojo suave
+    
+    # Configurar anchos de columna
+    anchuras = {
+        'fecha': 12,
+        'tercero': 30,
+        'concepto': 30,
+        'monto': 15
+    }
+    
+    # Aplicar anchos
+    for i, col in enumerate(resultados_df.columns):
+        ancho = anchuras.get(col.lower(), 14)
+        worksheet.set_column(i, i, ancho)
+    
+    # Aplicar formato a encabezados
+    for i, col in enumerate(resultados_df.columns):
+        worksheet.write(0, i, col, formato_encabezado)
+    
+    # Congelar la primera fila
+    worksheet.freeze_panes(1, 0)
+    
+    # Aplicar formato a las celdas por columna
+    for i, col in enumerate(resultados_df.columns):
+        col_lower = col.lower()
+        
+        # Formato para fechas
+        if col_lower == 'fecha':
+            for row_num in range(1, len(resultados_df) + 1):
+                worksheet.write_datetime(row_num, i, resultados_df.iloc[row_num-1][col], formato_fecha)
+        
+        # Formato para montos
+        elif col_lower == 'monto':
+            for row_num in range(1, len(resultados_df) + 1):
+                worksheet.write_number(row_num, i, resultados_df.iloc[row_num-1][col], formato_moneda)
+        
+        # Formato para estado No Conciliado
+        elif col_lower == 'estado':
+            for row_num in range(1, len(resultados_df) + 1):
+                estado = resultados_df.iloc[row_num-1][col]
+                if estado == 'No Conciliado':
+                    # Aplicar formato a toda la fila
+                    for col_idx in range(len(resultados_df.columns)):
+                        if col_idx == i:  # La celda de estado
+                            worksheet.write(row_num, col_idx, estado, formato_no_conciliado)
+                        else:
+                            valor = resultados_df.iloc[row_num-1][resultados_df.columns[col_idx]]
+                            # Manejar tipos específicos
+                            if resultados_df.columns[col_idx].lower() == 'fecha':
+                                formato_combinado = workbook.add_format({'num_format': 'dd/mm/yyyy', 'bg_color': '#FFCCCB'})
+                                worksheet.write_datetime(row_num, col_idx, valor, formato_combinado)
+                            elif resultados_df.columns[col_idx].lower() == 'monto':
+                                formato_combinado = workbook.add_format({'num_format': '_($* #,##0.00_);_($* (#,##0.00);_($* "-"??_);_(@_)', 'bg_color': '#FFCCCB'})
+                                worksheet.write_number(row_num, col_idx, valor, formato_combinado)
+                            else:
+                                worksheet.write(row_num, col_idx, valor, formato_no_conciliado)
+
 # Interfaz de Streamlit
 st.title("Herramienta de Conciliación Bancaria Automática")
 
@@ -837,6 +962,7 @@ if extracto_file and auxiliar_file:
         output = BytesIO()
         with pd.ExcelWriter(output, engine="openpyxl") as writer:
             resultados_df.to_excel(writer, sheet_name="Resultados", index=False)
+            aplicar_formato_excel(writer, resultados_df)
         output.seek(0)
 
         # Botón para descargar resultados
