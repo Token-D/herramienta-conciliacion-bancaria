@@ -745,13 +745,11 @@ def aplicar_formato_excel(writer, resultados_df):
 # Interfaz de Streamlit
 st.title("Herramienta de Conciliación Bancaria Automática")
 
-# Configuración del mes a conciliar
 st.subheader("Configuración")
 meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
 mes_seleccionado = st.selectbox("Mes a conciliar (opcional):", ["Todos"] + meses)
 mes_conciliacion = meses.index(mes_seleccionado) + 1 if mes_seleccionado != "Todos" else None
 
-# Cargar archivos Excel
 extracto_file = st.file_uploader("Subir Extracto Bancario (Excel)", type=["xlsx"])
 auxiliar_file = st.file_uploader("Subir Libro Auxiliar (Excel)", type=["xlsx"])
 
@@ -760,89 +758,95 @@ if 'invertir_signos' not in st.session_state:
     st.session_state.invertir_signos = False
 
 def realizar_conciliacion(extracto_file, auxiliar_file, mes_conciliacion, invertir_signos):
-        # Definir columnas esperadas
-        columnas_esperadas_extracto = {
-            "fecha": ["fecha de operación", "fecha", "date", "fecha_operacion", "f. operación"],
-            "monto": ["importe (cop)", "monto", "amount", "importe"],
-            "concepto": ["concepto", "descripción", "concepto banco", "descripcion", "transacción", "transaccion"],
-            "numero_movimiento": ["número de movimiento", "numero de movimiento", "movimiento", "no. movimiento", "num", "nro. documento"],
-            "debitos": ["debitos", "débitos", "debe", "cargo", "cargos", "valor débito"],
-            "creditos": ["creditos", "créditos", "haber", "abono", "abonos", "valor crédito"]
-        }
+    # Definir columnas esperadas
+    columnas_esperadas_extracto = {
+        "fecha": ["fecha de operación", "fecha", "date", "fecha_operacion", "f. operación"],
+        "monto": ["importe (cop)", "monto", "amount", "importe"],
+        "concepto": ["concepto", "descripción", "concepto banco", "descripcion", "transacción", "transaccion"],
+        "numero_movimiento": ["número de movimiento", "numero de movimiento", "movimiento", "no. movimiento", "num", "nro. documento"],
+        "debitos": ["debitos", "débitos", "debe", "cargo", "cargos", "valor débito"],
+        "creditos": ["creditos", "créditos", "haber", "abono", "abonos", "valor crédito"]
+    }
 
-        columnas_esperadas_auxiliar = {
-            "fecha": ["fecha", "date", "fecha de operación", "fecha_operacion", "f. operación"],
-            "debitos": ["debitos", "débitos", "debe", "cargo", "cargos", "valor débito"],
-            "creditos": ["creditos", "créditos", "haber", "abono", "abonos", "valor crédito"],
-            "nota": ["nota", "nota libro auxiliar", "descripción", "observaciones", "descripcion"],
-            "numero_movimiento": ["doc num", "doc. num", "documento", "número documento", "numero documento", "nro. documento"],
-            "tercero": ["tercero", "Tercero", "proveedor"]
-        }
+    columnas_esperadas_auxiliar = {
+        "fecha": ["fecha", "date", "fecha de operación", "fecha_operacion", "f. operación"],
+        "debitos": ["debitos", "débitos", "debe", "cargo", "cargos", "valor débito"],
+        "creditos": ["creditos", "créditos", "haber", "abono", "abonos", "valor crédito"],
+        "nota": ["nota", "nota libro auxiliar", "descripción", "observaciones", "descripcion"],
+        "numero_movimiento": ["doc num", "doc. num", "documento", "número documento", "numero documento", "nro. documento"],
+        "tercero": ["tercero", "Tercero", "proveedor"]
+    }
 
-        # Leer los datos a partir de la fila de encabezados
-        extracto_df = leer_datos_desde_encabezados(extracto_file, columnas_esperadas_extracto, "Extracto Bancario", max_filas=30)
-        auxiliar_df = leer_datos_desde_encabezados(auxiliar_file, columnas_esperadas_auxiliar, "Libro Auxiliar", max_filas=30)
+    # Leer datos
+    extracto_df = leer_datos_desde_encabezados(extracto_file, columnas_esperadas_extracto, "Extracto Bancario")
+    auxiliar_df = leer_datos_desde_encabezados(auxiliar_file, columnas_esperadas_auxiliar, "Libro Auxiliar")
 
-        # Procesar montos con la función unificada
-        auxiliar_df = procesar_montos(auxiliar_df, "Libro Auxiliar", es_extracto=False)
-        extracto_df = procesar_montos(extracto_df, "Extracto Bancario", es_extracto=True)
-        
-        # Estandarizar fechas
-        auxiliar_df = estandarizar_fechas(auxiliar_df, "Libro Auxiliar", mes_conciliacion=None)
-        extracto_df = estandarizar_fechas(extracto_df, "Extracto Bancario", mes_conciliacion=None, completar_anio=True, auxiliar_df=auxiliar_df)
+    # Procesar montos
+    auxiliar_df = procesar_montos(auxiliar_df, "Libro Auxiliar", es_extracto=False)
+    extracto_df = procesar_montos(extracto_df, "Extracto Bancario", es_extracto=True, invertir_signos=invertir_signos)
 
-        # Filtrar por mes si se seleccionó
-        if mes_conciliacion:
-            extracto_df = estandarizar_fechas(extracto_df, "Extracto Bancario", mes_conciliacion=mes_conciliacion)
-            auxiliar_df = estandarizar_fechas(auxiliar_df, "Libro Auxiliar", mes_conciliacion=mes_conciliacion)
+    # Estandarizar fechas
+    auxiliar_df = estandarizar_fechas(auxiliar_df, "Libro Auxiliar", mes_conciliacion=None)
+    extracto_df = estandarizar_fechas(extracto_df, "Extracto Bancario", mes_conciliacion=None, completar_anio=True, auxiliar_df=auxiliar_df)
 
-        # Mostrar resúmenes de los datos cargados
-        st.subheader("Resumen de datos cargados")
-        st.write(f"Extracto bancario: {len(extracto_df)} movimientos")
-        st.write(f"Libro auxiliar: {len(auxiliar_df)} movimientos")
-        
-        # Mostrar las primeras filas como ejemplo
-        col1, col2 = st.columns(2)
-        with col1:
-            st.write("Primeras filas del extracto bancario:")
-            st.write(extracto_df.head(5))
-        with col2:
-            st.write("Primeras filas del libro auxiliar:")
-            st.write(auxiliar_df.head(5))
+    # Filtrar por mes si se seleccionó
+    if mes_conciliacion:
+        extracto_df = estandarizar_fechas(extracto_df, "Extracto Bancario", mes_conciliacion=mes_conciliacion)
+        auxiliar_df = estandarizar_fechas(auxiliar_df, "Libro Auxiliar", mes_conciliacion=mes_conciliacion)
 
-        # Realizar conciliación
-        resultados_df = conciliar_banco_completo(extracto_df, auxiliar_df)
-        
+    # Mostrar resúmenes
+    st.subheader("Resumen de datos cargados")
+    st.write(f"Extracto bancario: {len(extracto_df)} movimientos")
+    st.write(f"Libro auxiliar: {len(auxiliar_df)} movimientos")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.write("Primeras filas del extracto bancario:")
+        st.write(extracto_df.head())
+    with col2:
+        st.write("Primeras filas del libro auxiliar:")
+        st.write(auxiliar_df.head())
+
+    # Realizar conciliación
+    resultados_df = conciliar_banco_completo(extracto_df, auxiliar_df)
+    
+    return resultados_df, extracto_df, auxiliar_df
+
+if extracto_file and auxiliar_file:
+    try:
+        # Realizar conciliación inicial
+        resultados_df, extracto_df, auxiliar_df = realizar_conciliacion(
+            extracto_file, auxiliar_file, mes_conciliacion, st.session_state.invertir_signos
+        )
+
         # Depurar resultados
+        st.write("Fechas en resultados_df antes de generar Excel:")
+        st.write(resultados_df[['fecha']].head(10))
+        st.write("Valores NaT en 'fecha':", resultados_df['fecha'].isna().sum())
         if resultados_df['fecha'].isna().any():
             st.write("Filas con NaT en 'fecha':")
             st.write(resultados_df[resultados_df['fecha'].isna()])
 
         # Mostrar resultados
         st.subheader("Resultados de la Conciliación")
-
-        # Estadísticas de conciliación
         conciliados = resultados_df[resultados_df['estado'] == 'Conciliado']
         no_conciliados = resultados_df[resultados_df['estado'] == 'No Conciliado']
+        porcentaje_conciliados = len(conciliados) / len(resultados_df) * 100 if len(resultados_df) > 0 else 0
+        
         st.write(f"Total de movimientos: {len(resultados_df)}")
-        st.write(f"Movimientos conciliados: {len(conciliados)} ({len(conciliados)/len(resultados_df)*100:.2f}%)")
+        st.write(f"Movimientos conciliados: {len(conciliados)} ({porcentaje_conciliados:.2f}%)")
         st.write(f"Movimientos no conciliados: {len(no_conciliados)} ({len(no_conciliados)/len(resultados_df)*100:.2f}%)")
 
-        # Distribución por tipo de conciliación con totales por origen
+        # Distribución por tipo de conciliación
         st.write("Distribución por tipo de conciliación:")
         distribucion = resultados_df.groupby(['tipo_conciliacion', 'origen']).size().reset_index(name='subtotal')
         distribucion_pivot = distribucion.pivot_table(
-            index='tipo_conciliacion', 
-            columns='origen', 
-            values='subtotal', 
-            fill_value=0
+            index='tipo_conciliacion', columns='origen', values='subtotal', fill_value=0
         ).reset_index()
         distribucion_pivot.columns = ['Tipo de Conciliación', 'Extracto Bancario', 'Libro Auxiliar']
         distribucion_pivot['Cantidad Total'] = distribucion_pivot['Extracto Bancario'] + distribucion_pivot['Libro Auxiliar']
         distribucion_pivot = distribucion_pivot[['Tipo de Conciliación', 'Extracto Bancario', 'Libro Auxiliar', 'Cantidad Total']]
         st.write(distribucion_pivot)
 
-        # Mostrar todos los resultados
         st.write("Detalle de todos los movimientos:")
         st.write(resultados_df)
 
@@ -862,7 +866,15 @@ def realizar_conciliacion(extracto_file, auxiliar_file, mes_conciliacion, invert
             file_name="resultados_conciliacion.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
-        except Exception as e:
+
+        # Mostrar botón si el porcentaje de conciliados es menor al 20%
+        if porcentaje_conciliados < 20:
+            st.warning("El porcentaje de movimientos conciliados es bajo. ¿Los signos de débitos/créditos están invertidos en el extracto?")
+            if st.button("Invertir valores débitos y créditos en Extracto Bancario"):
+                st.session_state.invertir_signos = not st.session_state.invertir_signos
+                st.experimental_rerun()  # Forzar reejecución de la app
+
+    except Exception as e:
         st.error(f"Error al procesar los archivos: {e}")
         st.exception(e)
 else:
