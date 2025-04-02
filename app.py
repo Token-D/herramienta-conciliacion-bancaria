@@ -146,9 +146,6 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
         df['fecha_original'] = df['fecha'].copy()
         df['fecha_str'] = df['fecha'].astype(str).str.strip()
         
-        st.write(f"Fechas crudas en {nombre_archivo} (primeras 5):")
-        st.write(df[['fecha_original', 'fecha_str']].head(5))
-        
         # Detectar formato predominante
         def detectar_formato(fecha_str):
             if '/' in fecha_str:
@@ -183,7 +180,6 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
         # Completar fechas sin año si se solicita
         if completar_anio and auxiliar_df is not None and 'fecha' in auxiliar_df.columns:
             año_predominante = auxiliar_df['fecha'].dt.year.mode()[0] if not auxiliar_df['fecha'].isna().all() else pd.Timestamp.now().year
-            st.info(f"Completando fechas sin año en {nombre_archivo} con año {año_predominante}.")
             
             def completar_fecha(fecha_str, año):
                 if pd.isna(fecha_str) or '/' not in fecha_str:
@@ -215,9 +211,6 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
                 meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 
                          'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
                 st.info(f"Se filtraron {filas_antes - len(df)} registros fuera del mes {meses[mes_conciliacion-1]} en {nombre_archivo}.")
-        
-        st.write(f"Fechas estandarizadas en {nombre_archivo} (primeras 5):")
-        st.write(df[['fecha', 'fecha_original']].head(5))
         
     except Exception as e:
         st.error(f"Error al estandarizar fechas en {nombre_archivo}: {e}")
