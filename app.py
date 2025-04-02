@@ -854,16 +854,6 @@ if extracto_file and auxiliar_file:
             extracto_df = estandarizar_fechas(extracto_df, "Extracto Bancario", mes_conciliacion=mes_conciliacion)
             auxiliar_df = estandarizar_fechas(auxiliar_df, "Libro Auxiliar", mes_conciliacion=mes_conciliacion)
 
-        # Obtener mes predominante del auxiliar
-        mes_conciliacion = obtener_mes_predominante(auxiliar_df)
-        if mes_conciliacion:
-            st.info(f"Mes predominante detectado en el libro auxiliar: {mes_conciliacion}")
-            # Filtrar ambos DataFrames por el mes predominante
-            extracto_df = estandarizar_fechas(extracto_df, mes_conciliacion=mes_conciliacion)
-            auxiliar_df = estandarizar_fechas(auxiliar_df, mes_conciliacion=mes_conciliacion)
-        else:
-            st.warning("No se pudo determinar el mes predominante. Procesando todos los meses.")
-
         # Mostrar resúmenes de los datos cargados
         st.subheader("Resumen de datos cargados")
         st.write(f"Extracto bancario: {len(extracto_df)} movimientos")
