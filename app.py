@@ -862,7 +862,7 @@ def realizar_conciliacion(extracto_file, auxiliar_file, mes_conciliacion, invert
             file_name="resultados_conciliacion.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
-    except Exception as e:
+        except Exception as e:
         st.error(f"Error al procesar los archivos: {e}")
         st.exception(e)
 else:
