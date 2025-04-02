@@ -895,7 +895,9 @@ if extracto_file and auxiliar_file:
             "fecha": ["fecha de operación", "fecha", "date", "fecha_operacion", "f. operación"],
             "monto": ["importe (cop)", "monto", "amount", "importe"],
             "concepto": ["concepto", "descripción", "concepto banco", "descripcion", "transacción", "transaccion"],
-            "numero_movimiento": ["número de movimiento", "numero de movimiento", "movimiento", "no. movimiento", "num", "nro. documento"]
+            "numero_movimiento": ["número de movimiento", "numero de movimiento", "movimiento", "no. movimiento", "num", "nro. documento"],
+            "debitos": ["debitos", "débitos", "debe", "cargo", "cargos", "valor débito"],
+            "creditos": ["creditos", "créditos", "haber", "abono", "abonos", "valor crédito"]
         }
 
         columnas_esperadas_auxiliar = {
