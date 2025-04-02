@@ -794,16 +794,32 @@ if extracto_file and auxiliar_file:
             st.write(resultados_df[resultados_df['fecha'].isna()])
 
         # Mostrar resultados
-        st.subheader("Resultados de la Conciliación")
-        conciliados = resultados_df[resultados_df['estado'] == 'Conciliado']
-        no_conciliados = resultados_df[resultados_df['estado'] == 'No Conciliado']
-        st.write(f"Total de movimientos: {len(resultados_df)}")
-        st.write(f"Movimientos conciliados: {len(conciliados)} ({len(conciliados)/len(resultados_df)*100:.1f}%)")
-        st.write(f"Movimientos no conciliados: {len(no_conciliados)} ({len(no_conciliados)/len(resultados_df)*100:.1f}%)")
-        st.write("Distribución por tipo de conciliación:")
-        st.write(resultados_df.groupby('tipo_conciliacion').size().reset_index(name='cantidad'))
-        st.write("Vista Previa los movimientos:")
-        st.write(resultados_df)
+st.subheader("Resultados de la Conciliación")
+
+# Estadísticas de conciliación
+conciliados = resultados_df[resultados_df['estado'] == 'Conciliado']
+no_conciliados = resultados_df[resultados_df['estado'] == 'No Conciliado']
+st.write(f"Total de movimientos: {len(resultados_df)}")
+st.write(f"Movimientos conciliados: {len(conciliados)} ({len(conciliados)/len(resultados_df)*100:.2f}%)")
+st.write(f"Movimientos no conciliados: {len(no_conciliados)} ({len(no_conciliados)/len(resultados_df)*100:.2f}%)")
+
+# Distribución por tipo de conciliación con totales por origen
+st.write("Distribución por tipo de conciliación:")
+distribucion = resultados_df.groupby(['tipo_conciliacion', 'origen']).size().reset_index(name='subtotal')
+distribucion_pivot = distribucion.pivot_table(
+    index='tipo_conciliacion', 
+    columns='origen', 
+    values='subtotal', 
+    fill_value=0
+).reset_index()
+distribucion_pivot.columns = ['Tipo de Conciliación', 'Extracto Bancario', 'Libro Auxiliar']
+distribucion_pivot['Cantidad Total'] = distribucion_pivot['Extracto Bancario'] + distribucion_pivot['Libro Auxiliar']
+distribucion_pivot = distribucion_pivot[['Tipo de Conciliación', 'Extracto Bancario', 'Libro Auxiliar', 'Cantidad Total']]
+st.write(distribucion_pivot)
+
+# Mostrar todos los resultados
+st.write("Detalle de todos los movimientos:")
+st.write(resultados_df)
 
         # Generar Excel
         def generar_excel(resultados_df):
