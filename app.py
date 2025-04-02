@@ -54,7 +54,6 @@ def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, ma
     # Leer los datos a partir de la fila de encabezados, sin limitar filas
     df = pd.read_excel(archivo, header=fila_encabezados)
     total_filas_datos = len(df)
-    st.write(f"Filas leídas en {nombre_archivo}: {total_filas_datos}")
 
     # Buscar la columna 'Doc Num' entre las variantes posibles antes de normalizar
     variantes_doc_num = columnas_esperadas.get('Doc Num', ["Doc Num"])  # Obtener variantes de columnas_esperadas
@@ -71,7 +70,6 @@ def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, ma
         # Eliminar filas donde 'Doc Num' sea NaN, None o cadena vacía
         df = df[df[doc_num_col].notna() & (df[doc_num_col] != '')]
         filas_despues = len(df)
-        st.write(f"Filas después de eliminar '{doc_num_col}' vacíos en {nombre_archivo}: {filas_despues}")
     
     # Normalizar las columnas
     df = normalizar_dataframe(df, columnas_esperadas)
@@ -431,16 +429,6 @@ def conciliacion_directa(extracto_df, auxiliar_df):
     extracto_df['fecha_solo'] = extracto_df['fecha'].dt.date
     auxiliar_df['fecha_solo'] = auxiliar_df['fecha'].dt.date
     
-    # Diagnóstico de fechas
-    st.subheader("Diagnóstico de fechas")
-    col1, col2 = st.columns(2)
-    with col1:
-        st.write("Fechas en extracto (primeras 5):")
-        st.write(extracto_df[['fecha', 'fecha_solo']].head())
-    with col2:
-        st.write("Fechas en auxiliar (primeras 5):")
-        st.write(auxiliar_df[['fecha', 'fecha_solo']].head())
-    
     # Para cada fila en el extracto
     for idx_extracto, fila_extracto in extracto_df.iterrows():
         # Buscar coincidencias en el libro auxiliar usando fecha_solo
@@ -666,7 +654,7 @@ def conciliar_banco_completo(extracto_df, auxiliar_df):
     resultados_directa, extracto_conciliado_idx, auxiliar_conciliado_idx = conciliacion_directa(
         extracto_df, auxiliar_df
     )
-    st.write(f"Conciliación directa: {len(extracto_conciliado_idx)} movimientos del extracto y {len(auxiliar_conciliado_idx)} movimientos del auxiliar")
+    st.write(f"Conciliación directa: {len(extracto_conciliado_idx)}  extracto y {len(auxiliar_conciliado_idx)} movimientos del auxiliar")
     
     # 2. Conciliación por agrupación en el libro auxiliar
     resultados_agrup_aux, nuevos_extracto_conc1, nuevos_auxiliar_conc1 = conciliacion_agrupacion_auxiliar(
@@ -837,18 +825,15 @@ if extracto_file and auxiliar_file:
         col1, col2 = st.columns(2)
         with col1:
             st.write("Primeras filas del extracto bancario:")
-            st.write(extracto_df.head(20))
+            st.write(extracto_df.head(5))
         with col2:
             st.write("Primeras filas del libro auxiliar:")
-            st.write(auxiliar_df.head(20))
+            st.write(auxiliar_df.head(5))
 
         # Realizar conciliación
         resultados_df = conciliar_banco_completo(extracto_df, auxiliar_df)
         
         # Depurar resultados
-        st.write("Fechas en resultados_df antes de generar Excel:")
-        st.write(resultados_df[['fecha']].head(10))
-        st.write("Valores NaT en 'fecha':", resultados_df['fecha'].isna().sum())
         if resultados_df['fecha'].isna().any():
             st.write("Filas con NaT en 'fecha':")
             st.write(resultados_df[resultados_df['fecha'].isna()])
@@ -858,11 +843,11 @@ if extracto_file and auxiliar_file:
         conciliados = resultados_df[resultados_df['estado'] == 'Conciliado']
         no_conciliados = resultados_df[resultados_df['estado'] == 'No Conciliado']
         st.write(f"Total de movimientos: {len(resultados_df)}")
-        st.write(f"Movimientos conciliados: {len(conciliados)} ({len(conciliados)/len(resultados_df)*100:.2f}%)")
-        st.write(f"Movimientos no conciliados: {len(no_conciliados)} ({len(no_conciliados)/len(resultados_df)*100:.2f}%)")
+        st.write(f"Movimientos conciliados: {len(conciliados)} ({len(conciliados)/len(resultados_df)*100:.1f}%)")
+        st.write(f"Movimientos no conciliados: {len(no_conciliados)} ({len(no_conciliados)/len(resultados_df)*100:.1f}%)")
         st.write("Distribución por tipo de conciliación:")
         st.write(resultados_df.groupby('tipo_conciliacion').size().reset_index(name='cantidad'))
-        st.write("Detalle de todos los movimientos:")
+        st.write("Vista Previa los movimientos:")
         st.write(resultados_df)
 
         # Generar Excel
