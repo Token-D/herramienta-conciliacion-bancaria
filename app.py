@@ -75,13 +75,15 @@ def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, ma
     # Normalizar las columnas
     df = normalizar_dataframe(df, columnas_esperadas)
     
-    # Verificar si el DataFrame tiene las columnas esperadas
-    for col in columnas_esperadas.keys():
-        if col not in df.columns:
-            st.error(f"La columna esperada '{col}' no se encontró en los datos leídos del archivo '{nombre_archivo}'.")
-            st.stop()
- 
-    return df
+    # Verificar si el DataFrame tiene al menos las columnas mínimas necesarias (fecha)
+    if 'fecha' not in df.columns:
+        st.error(f"La columna obligatoria 'fecha' no se encontró en los datos leídos del archivo '{nombre_archivo}'.")
+        st.stop()
+    
+    # Verificar si existe al menos una columna de monto o débito/crédito
+    if 'monto' not in df.columns and ('debitos' not in df.columns and 'creditos' not in df.columns):
+        st.error(f"No se encontró ninguna columna de monto (monto, debitos o creditos) en el archivo '{nombre_archivo}'.")
+        st.stop()
 
 # Función para normalizar un DataFrame
 def normalizar_dataframe(df, columnas_esperadas):
