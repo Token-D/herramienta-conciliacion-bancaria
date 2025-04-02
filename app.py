@@ -149,54 +149,78 @@ def normalizar_dataframe(df, columnas_esperadas):
 def estandarizar_fechas(df, mes_conciliacion):
     """
     Convierte la columna 'fecha' a formato datetime64, considerando el mes de conciliación.
+    Soporta formatos como YYYY/MM/DD, YYYY-MM-DD, y otros.
     """
-    if 'fecha' in df.columns:
-        try:
-            # Convertir a string primero para manipular
-            df['fecha_original'] = df['fecha'].copy()
-            df['fecha_str'] = df['fecha'].astype(str)
-            
-            # Buscar patrones comunes de fecha en la columna
-            fechas_detectadas = []
-            for fecha_str in df['fecha_str'].dropna().unique()[:10]:  # Analizar primeras 10 fechas únicas
-                if '-' in fecha_str:
-                    partes = fecha_str.split('T')[0].split('-')
-                    if len(partes) == 3:
-                        fechas_detectadas.append(partes)
-            
-            # Determinar si las fechas parecen estar en formato YYYY-MM-DD o YYYY-DD-MM
-            formato_detectado = "desconocido"
-            if fechas_detectadas:
-                # Si el segundo número (posible mes) coincide mayormente con el mes seleccionado
-                coincidencias_mes_en_pos1 = sum(1 for partes in fechas_detectadas if int(partes[1]) == mes_conciliacion)
-                coincidencias_mes_en_pos2 = sum(1 for partes in fechas_detectadas if int(partes[2]) == mes_conciliacion)
-                
-                if coincidencias_mes_en_pos1 > coincidencias_mes_en_pos2:
-                    formato_detectado = "YYYY-MM-DD"
-                else:
-                    formato_detectado = "YYYY-DD-MM"
-                
-                st.info(f"Formato de fecha detectado: {formato_detectado}")
-            
-            # Convertir a datetime según el formato detectado
-            if formato_detectado == "YYYY-MM-DD":
-                df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce', format='%Y-%m-%d')
-            elif formato_detectado == "YYYY-DD-MM":
-                # Para fechas en formato YYYY-DD-MM, intercambiamos día y mes
-                df['fecha'] = pd.to_datetime(df['fecha_str'].str.replace(r'(\d{4})-(\d{2})-(\d{2})', r'\1-\3-\2', regex=True), 
-                                            errors='coerce', format='%Y-%m-%d')
-            else:
-                # Intentar ambos formatos
-                df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce')
-            
-            # Filtrar por mes de conciliación
-            df = df[df['fecha'].dt.month == mes_conciliacion]
-            
-            # Mostrar estadísticas
-            st.write(f"Registros para el mes {meses[mes_conciliacion-1]}: {len(df)}")
-            
-        except Exception as e:
-            st.warning(f"Error al convertir fechas: {e}")
+    if 'fecha' not in df.columns:
+        st.warning("No se encontró la columna 'fecha' en el DataFrame.")
+        return df
+    
+    try:
+        # Guardar copia de las fechas originales para depuración
+        df['fecha_original'] = df['fecha'].copy()
+        
+        # Convertir a string para analizar formatos
+        df['fecha_str'] = df['fecha'].astype(str).str.strip()
+        
+        # Función para detectar formato de una fecha
+        def detectar_formato(fecha_str):
+            if '/' in fecha_str:  # Formato con barras (ej. 2025/02/28)
+                partes = fecha_str.split('/')
+                if len(partes) == 3 and len(partes[0]) == 4:  # YYYY/MM/DD
+                    return 'YYYY/MM/DD'
+            elif '-' in fecha_str:  # Formato con guiones (ej. 2025-02-28)
+                partes = fecha_str.split('-')
+                if len(partes) == 3 and len(partes[0]) == 4:  # YYYY-MM-DD
+                    return 'YYYY-MM-DD'
+            return None
+        
+        # Analizar las primeras 10 fechas únicas para detectar formato predominante
+        formatos_detectados = {}
+        for fecha_str in df['fecha_str'].dropna().unique()[:10]:
+            formato = detectar_formato(fecha_str)
+            if formato:
+                formatos_detectados[formato] = formatos_detectados.get(formato, 0) + 1
+        
+        # Determinar el formato más común
+        if formatos_detectados:
+            formato_predominante = max(formatos_detectados, key=formatos_detectados.get)
+            st.info(f"Formato de fecha predominante detectado: {formato_predominante}")
+        else:
+            formato_predominante = None
+            st.warning("No se pudo detectar un formato predominante. Intentando parseo genérico.")
+        
+        # Convertir fechas según el formato detectado
+        if formato_predominante == 'YYYY/MM/DD':
+            df['fecha'] = pd.to_datetime(df['fecha_str'], format='%Y/%m/%d', errors='coerce')
+        elif formato_predominante == 'YYYY-MM-DD':
+            df['fecha'] = pd.to_datetime(df['fecha_str'], format='%Y-%m-%d', errors='coerce')
+        else:
+            # Intentar parseo genérico con múltiples formatos
+            df['fecha'] = pd.to_datetime(df['fecha_str'], errors='coerce')
+        
+        # Reportar fechas que no se pudieron parsear
+        fechas_invalidas = df['fecha'].isna().sum()
+        if fechas_invalidas > 0:
+            st.warning(f"Se encontraron {fechas_invalidas} fechas inválidas que se convirtieron a NaT.")
+            st.write("Ejemplos de fechas inválidas:")
+            st.write(df[df['fecha'].isna()][['fecha_original', 'fecha_str']].head())
+        
+        # Filtrar por mes de conciliación
+        filas_antes = len(df)
+        df = df[df['fecha'].dt.month == mes_conciliacion]
+        if len(df) < filas_antes:
+            st.info(f"Se filtraron {filas_antes - len(df)} registros que no corresponden al mes {mes_conciliacion}.")
+        
+        # Mostrar estadísticas
+        meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 
+                 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+        st.write(f"Registros para el mes {meses[mes_conciliacion-1]}: {len(df)}")
+        st.write("Primeras 5 fechas estandarizadas:")
+        st.write(df[['fecha', 'fecha_original']].head(5))
+        
+    except Exception as e:
+        st.warning(f"Error al convertir fechas: {e}")
+    
     return df
 
 def completar_fechas_sin_anio(extracto_df, auxiliar_df):
