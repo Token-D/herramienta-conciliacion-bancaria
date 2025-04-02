@@ -793,7 +793,7 @@ if extracto_file and auxiliar_file:
             st.write("Filas con NaT en 'fecha':")
             st.write(resultados_df[resultados_df['fecha'].isna()])
 
-        # Mostrar resultados
+# Mostrar resultados
 st.subheader("Resultados de la Conciliación")
 
 # Estadísticas de conciliación
