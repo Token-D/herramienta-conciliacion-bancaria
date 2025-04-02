@@ -265,7 +265,7 @@ def detectar_formato_fecha(df):
 
 
 # Función para procesar los montos
-def procesar_montos(df, nombre_archivo, es_extracto=False):
+def procesar_montos(df, nombre_archivo, es_extracto=False, invertir_signos=False):
     """
     Procesa columnas de débitos y créditos para crear una columna 'monto' unificada.
     Para extractos: débitos son negativos, créditos positivos.
@@ -296,9 +296,13 @@ def procesar_montos(df, nombre_archivo, es_extracto=False):
     # Inicializar columna 'monto'
     df["monto"] = 0.0
 
-    # Definir signos según el tipo de archivo
-    signo_debito = -1 if es_extracto else 1
-    signo_credito = 1 if es_extracto else -1
+    # Definir signos según el tipo de archivo y si se invierten
+    if es_extracto:
+        signo_debito = 1 if invertir_signos else -1
+        signo_credito = -1 if invertir_signos else 1
+    else:
+        signo_debito = 1  # Auxiliar no invierte signos
+        signo_credito = -1
 
     # Procesar débitos
     for col in cols_debito:
