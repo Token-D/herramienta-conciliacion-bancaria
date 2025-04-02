@@ -202,6 +202,35 @@ def estandarizar_fechas(df, mes_conciliacion):
         except Exception as e:
             st.warning(f"Error al convertir fechas: {e}")
     return df
+
+def completar_fechas_sin_anio(extracto_df, auxiliar_df):
+    """
+    Completa las fechas del extracto que no tengan año utilizando el año predominante
+    en el libro auxiliar.
+    """
+    if 'fecha' not in extracto_df.columns or 'fecha' not in auxiliar_df.columns:
+        return extracto_df
+    
+    # Verificar si hay fechas con año en el extracto
+    años_extracto = extracto_df['fecha'].dt.year.unique()
+    
+    # Si todas las fechas tienen año 1900 o NaT, puede indicar un problema
+    if len(años_extracto) == 1 and (años_extracto[0] == 1900 or pd.isna(años_extracto[0])):
+        # Obtener el año predominante del libro auxiliar
+        año_predominante = auxiliar_df['fecha'].dt.year.mode()[0]
+        if pd.notna(año_predominante) and año_predominante > 1900:
+            st.warning(f"Fechas en extracto bancario sin año. Asignando año {año_predominante} del libro auxiliar.")
+            
+            # Crear una copia de las fechas originales
+            extracto_df['fecha_original'] = extracto_df['fecha'].copy()
+            
+            # Ajustar las fechas del extracto con el año correcto
+            extracto_df['fecha'] = extracto_df['fecha'].apply(
+                lambda x: x.replace(year=año_predominante) if pd.notna(x) else x
+            )
+    
+    return extracto_df
+    
 def detectar_formato_fecha(df):
     """
     Analiza la columna 'fecha' para detectar el formato más probable.
