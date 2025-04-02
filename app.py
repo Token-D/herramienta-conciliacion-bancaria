@@ -54,12 +54,6 @@ def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, ma
     # Normalizar las columnas
     df = normalizar_dataframe(df, columnas_esperadas)
 
-    # Verificar si el DataFrame tiene las columnas esperadas
-    for col in columnas_esperadas.keys():
-        if col not in df.columns:
-            st.error(f"La columna esperada '{col}' no se encontró en los datos leídos del archivo '{nombre_archivo}'.")
-            st.stop()
-
     # Filtrar filas donde 'Doc Num' no esté vacío
     if 'Doc Num' in df.columns:
         filas_antes = len(df)
@@ -72,6 +66,12 @@ def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, ma
     else:
         st.warning(f"La columna 'Doc Num' no se encontró en {nombre_archivo} después de normalizar. No se aplicó filtro.")
     
+    # Verificar si el DataFrame tiene las columnas esperadas
+    for col in columnas_esperadas.keys():
+        if col not in df.columns:
+            st.error(f"La columna esperada '{col}' no se encontró en los datos leídos del archivo '{nombre_archivo}'.")
+            st.stop()
+ 
     return df
 
 # Función para normalizar un DataFrame
