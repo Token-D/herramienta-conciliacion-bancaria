@@ -799,7 +799,7 @@ def conciliar_banco_completo(extracto_df, auxiliar_df):
 
 def aplicar_formato_excel(writer, resultados_df):
     """
-    Aplica formato al archivo Excel de resultados
+    Aplica formato al archivo Excel de resultados usando xlsxwriter.
     """
     # Obtener la hoja de cálculo
     worksheet = writer.sheets['Resultados']
@@ -963,16 +963,19 @@ if extracto_file and auxiliar_file:
         st.write(resultados_df)
 
         # Generar archivo de resultados
-        output = BytesIO()
-        with pd.ExcelWriter(output, engine="openpyxl") as writer:
-            resultados_df.to_excel(writer, sheet_name="Resultados", index=False)
-            aplicar_formato_excel(writer, resultados_df)
-        output.seek(0)
+def generar_excel(resultados_df):
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine="xlsxwriter") as writer:  # Cambiar a xlsxwriter
+        resultados_df.to_excel(writer, sheet_name="Resultados", index=False)
+        aplicar_formato_excel(writer, resultados_df)
+    output.seek(0)
+    return output
 
         # Botón para descargar resultados
+        excel_data = generar_excel(resultados_df)
         st.download_button(
             label="Descargar Resultados en Excel",
-            data=output,
+            data=excel_data,
             file_name="resultados_conciliacion.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
