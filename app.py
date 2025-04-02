@@ -272,7 +272,6 @@ def procesar_montos(df, nombre_archivo, es_extracto=False, invertir_signos=False
     Para auxiliar: débitos son positivos, créditos negativos.
     """
     columnas = df.columns.str.lower()
-    st.write(f"Columnas disponibles en {nombre_archivo}: {list(columnas)}")
 
     # Verificar si ya existe una columna 'monto' válida
     if "monto" in columnas and df["monto"].notna().any() and (df["monto"] != 0).any():
@@ -284,9 +283,6 @@ def procesar_montos(df, nombre_archivo, es_extracto=False, invertir_signos=False
     terminos_creditos = ["cred", "haber", "abono", "crédito", "valor crédito"]
     cols_debito = [col for col in df.columns if any(term in col.lower() for term in terminos_debitos)]
     cols_credito = [col for col in df.columns if any(term in col.lower() for term in terminos_creditos)]
-
-    st.write(f"Columnas de débitos detectadas en {nombre_archivo}: {cols_debito}")
-    st.write(f"Columnas de créditos detectadas en {nombre_archivo}: {cols_credito}")
 
     # Si no hay columnas de monto, débitos ni créditos, advertir
     if not cols_debito and not cols_credito and "monto" not in columnas:
@@ -309,7 +305,6 @@ def procesar_montos(df, nombre_archivo, es_extracto=False, invertir_signos=False
         try:
             df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
             df["monto"] += df[col] * signo_debito
-            st.write(f"Sumados {signo_debito} * valores de '{col}' a 'monto' en {nombre_archivo}.")
         except Exception as e:
             st.warning(f"Error al procesar columna de débito '{col}' en {nombre_archivo}: {e}")
 
@@ -318,7 +313,6 @@ def procesar_montos(df, nombre_archivo, es_extracto=False, invertir_signos=False
         try:
             df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
             df["monto"] += df[col] * signo_credito
-            st.write(f"Sumados {signo_credito} * valores de '{col}' a 'monto' en {nombre_archivo}.")
         except Exception as e:
             st.warning(f"Error al procesar columna de crédito '{col}' en {nombre_archivo}: {e}")
 
@@ -391,17 +385,7 @@ def conciliacion_directa(extracto_df, auxiliar_df):
     auxiliar_df = auxiliar_df.copy()
     extracto_df['fecha_solo'] = extracto_df['fecha'].dt.date
     auxiliar_df['fecha_solo'] = auxiliar_df['fecha'].dt.date
-    
-    # Diagnóstico de fechas
-    st.subheader("Diagnóstico de fechas")
-    col1, col2 = st.columns(2)
-    with col1:
-        st.write("Fechas en extracto (primeras 5):")
-        st.write(extracto_df[['fecha', 'fecha_solo']].head())
-    with col2:
-        st.write("Fechas en auxiliar (primeras 5):")
-        st.write(auxiliar_df[['fecha', 'fecha_solo']].head())
-    
+        
     # Iterar sobre el extracto
     for idx_extracto, fila_extracto in extracto_df.iterrows():
         if idx_extracto in extracto_conciliado_idx or pd.isna(fila_extracto['fecha_solo']):
@@ -490,7 +474,6 @@ def conciliacion_directa(extracto_df, auxiliar_df):
             })
     
     resultados_df = pd.DataFrame(resultados)
-    st.write(f"Total conciliados en directa: {len(extracto_conciliado_idx)} extracto, {len(auxiliar_conciliado_idx)} auxiliar")
     return resultados_df, extracto_conciliado_idx, auxiliar_conciliado_idx
 
 # Función para la conciliación por agrupación en el libro auxiliar
@@ -819,9 +802,6 @@ if extracto_file and auxiliar_file:
         )
 
         # Depurar resultados
-        st.write("Fechas en resultados_df antes de generar Excel:")
-        st.write(resultados_df[['fecha']].head(10))
-        st.write("Valores NaT en 'fecha':", resultados_df['fecha'].isna().sum())
         if resultados_df['fecha'].isna().any():
             st.write("Filas con NaT en 'fecha':")
             st.write(resultados_df[resultados_df['fecha'].isna()])
