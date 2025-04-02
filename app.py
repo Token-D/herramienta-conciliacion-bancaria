@@ -765,10 +765,13 @@ tipos_aceptados = [
 ]
 extracto_file = st.file_uploader("Subir Extracto Bancario (Excel)", type=tipos_aceptados)
 if extracto_file:
-    st.write(f"Tipo MIME del archivo subido (Extracto): {extracto_file.type}")
+    st.write(f"Tipo MIME detectado para Extracto: {extracto_file.type}")
+    st.write(f"Nombre del archivo: {extracto_file.name}")
+
 auxiliar_file = st.file_uploader("Subir Libro Auxiliar (Excel)", type=tipos_aceptados)
 if auxiliar_file:
-    st.write(f"Tipo MIME del archivo subido (Auxiliar): {auxiliar_file.type}")
+    st.write(f"Tipo MIME detectado para Auxiliar: {auxiliar_file.type}")
+    st.write(f"Nombre del archivo: {auxiliar_file.name}")
 
 # Inicializar estado de sesión
 if 'invertir_signos' not in st.session_state:
