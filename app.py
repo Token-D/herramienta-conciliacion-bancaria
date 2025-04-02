@@ -882,6 +882,8 @@ meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto
 mes_seleccionado = st.selectbox("Mes a conciliar:", meses)
 num_mes = meses.index(mes_seleccionado) + 1  # 1 para enero, 2 para febrero, etc.
 detectar_formato_auto = st.checkbox("Detectar formato de fecha automáticamente", value=True)
+mes_conciliacion_nombre = st.sidebar.selectbox("Seleccione el mes de conciliación", meses)
+mes_conciliacion = meses.index(mes_conciliacion_nombre) + 1
 
 # Cargar archivos Excel
 extracto_file = st.file_uploader("Subir Extracto Bancario (Excel)", type=["xlsx"])
