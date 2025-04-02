@@ -691,8 +691,7 @@ if extracto_file and auxiliar_file:
             "creditos": ["creditos", "créditos", "haber", "abono", "abonos", "valor crédito"],
             "nota": ["nota", "nota libro auxiliar", "descripción", "observaciones", "descripcion"],
             "numero_movimiento": ["doc num", "doc. num", "documento", "número documento", "numero documento", "nro. documento"],
-            "tercero": ["tercero", "Tercero","proveedor"],
-            "monto": ["importe (cop)", "monto", "amount", "importe"]
+            "tercero": ["tercero", "Tercero","proveedor"]
         }
 
         # Leer los datos a partir de la fila de encabezados
