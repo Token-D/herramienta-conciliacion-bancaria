@@ -41,7 +41,7 @@ def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, ma
     fila_encabezados = buscar_fila_encabezados(df, columnas_esperadas, max_filas)
     if fila_encabezados is None:
         st.error(f"No se encontraron los encabezados necesarios en el archivo {nombre_archivo}.")
-        st.error(f"Se buscaron en las primeras {max_filas} filas.")
+        st.error(f"Se buscaron en las primeras {max_filas} filas. Se requieren al menos la columna fecha y columnas de montos.")
         st.stop()
 
     st.success(f"Encabezados encontrados en la fila {fila_encabezados + 1} del archivo {nombre_archivo}.")
@@ -52,13 +52,22 @@ def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, ma
     st.write(f"Filas leídas después de establecer encabezados en {nombre_archivo}: {total_filas_datos}")
 
     # Buscar la columna 'Doc Num' entre las variantes posibles antes de normalizar
-    variantes_doc_num = columnas_esperadas.get('Doc Num', ["Doc Num"])  # Obtener variantes de columnas_esperadas
     doc_num_col = None
-    for col in df.columns:
-        col_lower = str(col).lower().strip()
-        if any(variante.lower().strip() in col_lower for variante in variantes_doc_num):
-            doc_num_col = col
-            break
+    if 'Doc Num' in columnas_esperadas:
+        variantes_doc_num = columnas_esperadas.get('Doc Num', ["Doc Num"])  # Obtener variantes de columnas_esperadas
+        for col in df.columns:
+            col_lower = str(col).lower().strip()
+            if any(variante.lower().strip() in col_lower for variante in variantes_doc_num):
+                doc_num_col = col
+                break
+    
+    if 'numero_movimiento' in columnas_esperadas:
+        variantes_doc_num = columnas_esperadas.get('numero_movimiento', ["numero_movimiento"])
+        for col in df.columns:
+            col_lower = str(col).lower().strip()
+            if any(variante.lower().strip() in col_lower for variante in variantes_doc_num):
+                doc_num_col = col
+                break
     
     # Filtrar filas donde 'Doc Num' no esté vacío
     if doc_num_col:
@@ -70,7 +79,7 @@ def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, ma
         if filas_antes > filas_despues:
             st.info(f"Se eliminaron {filas_antes - filas_despues} filas con '{doc_num_col}' vacío.")
     else:
-        st.warning(f"No se encontró una columna tipo 'Doc Num' en {nombre_archivo} antes de normalizar. No se aplicó filtro.")
+        st.warning(f"No se encontró una columna tipo 'Doc Num' o 'numero_movimiento' en {nombre_archivo} antes de normalizar. No se aplicó filtro.")
     
     # Normalizar las columnas
     df = normalizar_dataframe(df, columnas_esperadas)
@@ -84,6 +93,8 @@ def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, ma
     if 'monto' not in df.columns and ('debitos' not in df.columns and 'creditos' not in df.columns):
         st.error(f"No se encontró ninguna columna de monto (monto, debitos o creditos) en el archivo '{nombre_archivo}'.")
         st.stop()
+ 
+    return df
 
 # Función para normalizar un DataFrame
 def normalizar_dataframe(df, columnas_esperadas):
