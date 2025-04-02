@@ -415,6 +415,7 @@ def conciliacion_directa(extracto_df, auxiliar_df):
             resultados.append({
                 'fecha': fila_extracto['fecha'],
                 'monto': fila_extracto['monto'],
+                'tercero': '',
                 'concepto': fila_extracto.get('concepto', ''),
                 'numero_movimiento': fila_extracto.get('numero_movimiento', ''),
                 'origen': 'Banco',
@@ -429,6 +430,7 @@ def conciliacion_directa(extracto_df, auxiliar_df):
             resultados.append({
                 'fecha': fila_auxiliar['fecha'],
                 'monto': fila_auxiliar['monto'],
+                'tercero': fila_auxiliar.get('tercero', ''),
                 'concepto': fila_auxiliar.get('nota', ''),
                 'numero_movimiento': fila_auxiliar.get('numero_movimiento', ''),
                 'origen': 'Libro Auxiliar',
@@ -461,6 +463,7 @@ def conciliacion_directa(extracto_df, auxiliar_df):
             resultados.append({
                 'fecha': fila_auxiliar["fecha"],
                 'monto': fila_auxiliar["monto"],
+                'tercero': fila_auxiliar.get('tercero', ''),
                 'concepto': fila_auxiliar.get("nota", ""),
                 'numero_movimiento': fila_auxiliar.get("numero_movimiento", ""),
                 'origen': 'Libro Auxiliar',
@@ -571,6 +574,7 @@ def conciliacion_agrupacion_extracto(extracto_df, auxiliar_df, extracto_concilia
             resultados.append({
                 'fecha': fila_auxiliar["fecha"],
                 'monto': fila_auxiliar["monto"],
+                'tercero': fila_auxiliar.get('tercero', ''),
                 'concepto': fila_auxiliar.get("nota", ""),
                 'numero_movimiento': fila_auxiliar.get("numero_movimiento", ""),
                 'origen': 'Libro Auxiliar',
@@ -587,6 +591,7 @@ def conciliacion_agrupacion_extracto(extracto_df, auxiliar_df, extracto_concilia
                 resultados.append({
                     'fecha': fila_ext["fecha"],
                     'monto': fila_ext["monto"],
+                    'tercero': '',
                     'concepto': fila_ext.get("concepto", ""),
                     'numero_movimiento': fila_ext.get("numero_movimiento", ""),
                     'origen': 'Banco',
@@ -682,7 +687,8 @@ if extracto_file and auxiliar_file:
             "debitos": ["debitos", "débitos", "debe", "cargo", "cargos", "valor débito"],
             "creditos": ["creditos", "créditos", "haber", "abono", "abonos", "valor crédito"],
             "nota": ["nota", "nota libro auxiliar", "descripción", "observaciones", "descripcion"],
-            "numero_movimiento": ["doc num", "doc. num", "documento", "número documento", "numero documento", "nro. documento"]
+            "numero_movimiento": ["doc num", "doc. num", "documento", "número documento", "numero documento", "nro. documento"],
+            "tercero": ["tercero", "Tercero","proveedor"]
         }
 
         # Leer los datos a partir de la fila de encabezados
