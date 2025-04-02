@@ -872,7 +872,7 @@ if extracto_file and auxiliar_file:
             st.warning("El porcentaje de movimientos conciliados es bajo. ¿Los signos de débitos/créditos están invertidos en el extracto?")
             if st.button("Invertir valores débitos y créditos en Extracto Bancario"):
                 st.session_state.invertir_signos = not st.session_state.invertir_signos
-                st.experimental_rerun()  # Forzar reejecución de la app
+                st.rerun()  # Forzar reejecución de la app
 
     except Exception as e:
         st.error(f"Error al procesar los archivos: {e}")
