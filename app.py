@@ -300,7 +300,6 @@ def procesar_montos(df, nombre_archivo, es_extracto=False, invertir_signos=False
 
     # Verificar si ya existe una columna 'monto' válida
     if "monto" in columnas and df["monto"].notna().any() and (df["monto"] != 0).any():
-        st.success(f"Columna 'monto' encontrada con valores válidos en {nombre_archivo}.")
         return df
 
     # Definir términos para identificar débitos y créditos
