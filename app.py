@@ -681,8 +681,8 @@ if extracto_file and auxiliar_file:
         columnas_esperadas_extracto = {
             "fecha": ["fecha de operación", "fecha", "date", "fecha_operacion", "f. operación"],
             "monto": ["importe (cop)", "monto", "amount", "importe"],
-            "concepto": ["concepto", "descripción", "concepto banco", "descripcion"],
-            "numero_movimiento": ["número de movimiento", "numero de movimiento", "movimiento", "no. movimiento", "num"]
+            "concepto": ["concepto", "descripción", "concepto banco", "descripcion", "transacción", "transaccion"],
+            "numero_movimiento": ["número de movimiento", "numero de movimiento", "movimiento", "no. movimiento", "num", "nro. documento"]
         }
 
         columnas_esperadas_auxiliar = {
@@ -691,7 +691,8 @@ if extracto_file and auxiliar_file:
             "creditos": ["creditos", "créditos", "haber", "abono", "abonos", "valor crédito"],
             "nota": ["nota", "nota libro auxiliar", "descripción", "observaciones", "descripcion"],
             "numero_movimiento": ["doc num", "doc. num", "documento", "número documento", "numero documento", "nro. documento"],
-            "tercero": ["tercero", "Tercero","proveedor"]
+            "tercero": ["tercero", "Tercero","proveedor"],
+            "monto": ["importe (cop)", "monto", "amount", "importe"]
         }
 
         # Leer los datos a partir de la fila de encabezados
