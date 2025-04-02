@@ -79,6 +79,11 @@ def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, ma
             st.info(f"Se eliminaron {filas_antes - filas_despues} filas con '{doc_num_col}' vacío.")
     else:
         st.warning(f"No se encontró una columna tipo 'Doc Num' en {nombre_archivo} antes de normalizar. No se aplicó filtro.")
+
+    # Inspeccionar fechas crudas antes de procesar
+    if 'fecha' in df.columns:
+        st.write(f"Fechas crudas en {nombre_archivo} antes de procesar:")
+        st.write(df['fecha'].head(5))
     
     # Normalizar las columnas
     df = normalizar_dataframe(df, columnas_esperadas)
