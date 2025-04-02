@@ -4,7 +4,7 @@ from io import BytesIO
 from itertools import combinations
 
 # Función para buscar la fila de encabezados
-def buscar_fila_encabezados(df, columnas_esperadas, max_filas=25):
+def buscar_fila_encabezados(df, columnas_esperadas, max_filas=30):
     """
     Busca la fila que contiene los nombres de las columnas esperadas.
     """
@@ -31,7 +31,7 @@ def buscar_fila_encabezados(df, columnas_esperadas, max_filas=25):
     return None
 
 # Función para leer datos a partir de la fila de encabezados
-def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, max_filas=20):
+def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, max_filas=30):
     # Leer el archivo de Excel sin asumir encabezados, leyendo todas las filas por defecto
     df = pd.read_excel(archivo, header=None)
     total_filas_inicial = len(df)
@@ -695,8 +695,8 @@ if extracto_file and auxiliar_file:
         }
 
         # Leer los datos a partir de la fila de encabezados
-        extracto_df = leer_datos_desde_encabezados(extracto_file, columnas_esperadas_extracto, "Extracto Bancario", max_filas=20)
-        auxiliar_df = leer_datos_desde_encabezados(auxiliar_file, columnas_esperadas_auxiliar, "Libro Auxiliar", max_filas=20)
+        extracto_df = leer_datos_desde_encabezados(extracto_file, columnas_esperadas_extracto, "Extracto Bancario", max_filas=30)
+        auxiliar_df = leer_datos_desde_encabezados(auxiliar_file, columnas_esperadas_auxiliar, "Libro Auxiliar", max_filas=30)
 
         # Procesar datos del libro auxiliar
         auxiliar_df = procesar_montos_auxiliar(auxiliar_df)
