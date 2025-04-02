@@ -264,108 +264,64 @@ def detectar_formato_fecha(df):
         return "desconocido"
 
 
-# Función para procesar los montos del libro auxiliar
-def procesar_montos_auxiliar(df):
+# Función para procesar los montos
+def procesar_montos(df, nombre_archivo, es_extracto=False):
     """
-    Procesa las columnas de débitos y créditos para obtener una columna de monto unificada.
+    Procesa columnas de débitos y créditos para crear una columna 'monto' unificada.
+    Para extractos: débitos son negativos, créditos positivos.
+    Para auxiliar: débitos son positivos, créditos negativos.
     """
-    # Verificar si existen las columnas debitos y creditos
     columnas = df.columns.str.lower()
-    
-    
-    # Buscar columnas de débitos
-    cols_debito = [col for col in columnas if "deb" in col or "debe" in col or "cargo" in col]
-    # Buscar columnas de créditos
-    cols_credito = [col for col in columnas if "cred" in col or "haber" in col or "abono" in col]
-    
-    
-    # Si ya existe una columna de monto, verificar si tiene valores válidos
-    if "monto" in columnas:
-        if df["monto"].notna().any() and (df["monto"] != 0).any():
-            return df
-    
-    # Si encontramos columnas de débito y crédito
-    if cols_debito and cols_credito:
-        # Crear nueva columna monto
-        df["monto"] = 0.0
-        
-        # Para cada columna de débito
-        for col in cols_debito:
-            # Asegurarse de que la columna sea numérica
-            try:
-                # Intentar convertir a numérico, NaN si falla
-                df[col] = pd.to_numeric(df[col], errors='coerce')
-                # Reemplazar NaN con 0
-                df[col] = df[col].fillna(0)
-                # Sumar a la columna monto
-                df["monto"] += df[col]
-            except Exception as e:
-                st.warning(f"Error al procesar la columna de débito '{col}': {e}")
-        
-        # Para cada columna de crédito
-        for col in cols_credito:
-            try:
-                # Intentar convertir a numérico, NaN si falla
-                df[col] = pd.to_numeric(df[col], errors='coerce')
-                # Reemplazar NaN con 0
-                df[col] = df[col].fillna(0)
-                # Restar de la columna monto
-                df["monto"] -= df[col]
-            except Exception as e:
-                st.warning(f"Error al procesar la columna de crédito '{col}': {e}")
-                    
-        # Eliminar columnas originales de débito y crédito si se desea
-        # df.drop(columns=cols_debito + cols_credito, inplace=True, errors='ignore')
-    else:
-        st.warning("No se encontraron columnas de débito y crédito. Puede que los montos no se procesen correctamente.")
-    
-    return df
+    st.write(f"Columnas disponibles en {nombre_archivo}: {list(columnas)}")
 
-# Función para procesar los montos del extracto
-def procesar_montos_universal(df, es_extracto=False):
-    """
-    Procesa las columnas de débitos y créditos para obtener una columna de monto unificada.
-    Para extractos bancarios, los créditos son positivos y débitos negativos.
-    """
-    # Si ya existe una columna de monto con valores válidos, la mantenemos
-    if "monto" in df.columns and df["monto"].notna().any() and (df["monto"] != 0).any():
+    # Verificar si ya existe una columna 'monto' válida
+    if "monto" in columnas and df["monto"].notna().any() and (df["monto"] != 0).any():
+        st.success(f"Columna 'monto' encontrada con valores válidos en {nombre_archivo}.")
         return df
-    
-    # Buscar columnas de débitos y créditos (case insensitive)
-    columnas = df.columns.str.lower()
-    cols_debito = [col for col in df.columns if any(term in col.lower() for term in ["deb", "debe", "cargo"])]
-    cols_credito = [col for col in df.columns if any(term in col.lower() for term in ["cred", "haber", "abono"])]
-    
-    # Si encontramos columnas de débito o crédito
-    if cols_debito or cols_credito:
-        # Crear nueva columna monto
-        df["monto"] = 0.0
-        
-        # Definir el signo según el origen (extracto o auxiliar)
-        # En extractos: débitos son negativos, créditos positivos
-        # En auxiliar: débito positivo, crédito negativo
-        signo_debito = -1 if es_extracto else 1
-        signo_credito = 1 if es_extracto else -1
-        
-        # Para cada columna de débito
-        for col in cols_debito:
-            try:
-                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
-                df["monto"] += df[col] * signo_debito
-            except Exception as e:
-                st.warning(f"Error al procesar la columna de débito '{col}': {e}")
-        
-        # Para cada columna de crédito
-        for col in cols_credito:
-            try:
-                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
-                df["monto"] += df[col] * signo_credito
-            except Exception as e:
-                st.warning(f"Error al procesar la columna de crédito '{col}': {e}")
-    else:
-        if "monto" not in df.columns:
-            st.warning("No se encontraron columnas de monto, débito o crédito.")
-    
+
+    # Definir términos para identificar débitos y créditos
+    terminos_debitos = ["deb", "debe", "cargo", "débito", "valor débito"]
+    terminos_creditos = ["cred", "haber", "abono", "crédito", "valor crédito"]
+    cols_debito = [col for col in df.columns if any(term in col.lower() for term in terminos_debitos)]
+    cols_credito = [col for col in df.columns if any(term in col.lower() for term in terminos_creditos)]
+
+    st.write(f"Columnas de débitos detectadas en {nombre_archivo}: {cols_debito}")
+    st.write(f"Columnas de créditos detectadas en {nombre_archivo}: {cols_credito}")
+
+    # Si no hay columnas de monto, débitos ni créditos, advertir
+    if not cols_debito and not cols_credito and "monto" not in columnas:
+        st.warning(f"No se encontraron columnas de monto, débitos o créditos en {nombre_archivo}.")
+        return df
+
+    # Inicializar columna 'monto'
+    df["monto"] = 0.0
+
+    # Definir signos según el tipo de archivo
+    signo_debito = -1 if es_extracto else 1
+    signo_credito = 1 if es_extracto else -1
+
+    # Procesar débitos
+    for col in cols_debito:
+        try:
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+            df["monto"] += df[col] * signo_debito
+            st.write(f"Sumados {signo_debito} * valores de '{col}' a 'monto' en {nombre_archivo}.")
+        except Exception as e:
+            st.warning(f"Error al procesar columna de débito '{col}' en {nombre_archivo}: {e}")
+
+    # Procesar créditos
+    for col in cols_credito:
+        try:
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+            df["monto"] += df[col] * signo_credito
+            st.write(f"Sumados {signo_credito} * valores de '{col}' a 'monto' en {nombre_archivo}.")
+        except Exception as e:
+            st.warning(f"Error al procesar columna de crédito '{col}' en {nombre_archivo}: {e}")
+
+    # Verificar resultado
+    if df["monto"].eq(0).all() and (cols_debito or cols_credito):
+        st.warning(f"La columna 'monto' resultó en ceros en {nombre_archivo}. Verifica las columnas de débitos/créditos.")
+
     return df
 
 # Función para encontrar combinaciones que sumen un monto específico
@@ -802,10 +758,9 @@ if extracto_file and auxiliar_file:
         extracto_df = leer_datos_desde_encabezados(extracto_file, columnas_esperadas_extracto, "Extracto Bancario", max_filas=30)
         auxiliar_df = leer_datos_desde_encabezados(auxiliar_file, columnas_esperadas_auxiliar, "Libro Auxiliar", max_filas=30)
 
-        # Procesar montos
-        auxiliar_df = procesar_montos_auxiliar(auxiliar_df)
-        auxiliar_df = procesar_montos_universal(auxiliar_df, es_extracto=False)
-        extracto_df = procesar_montos_universal(extracto_df, es_extracto=True)
+        # Procesar montos con la función unificada
+        auxiliar_df = procesar_montos(auxiliar_df, "Libro Auxiliar", es_extracto=False)
+        extracto_df = procesar_montos(extracto_df, "Extracto Bancario", es_extracto=True)
         
         # Estandarizar fechas
         auxiliar_df = estandarizar_fechas(auxiliar_df, "Libro Auxiliar", mes_conciliacion=None)
