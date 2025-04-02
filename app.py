@@ -43,7 +43,6 @@ def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, ma
     # Leer el archivo de Excel sin asumir encabezados, leyendo todas las filas por defecto
     df = pd.read_excel(archivo, header=None)
     total_filas_inicial = len(df)
-    st.write(f"Total de filas leídas inicialmente en {nombre_archivo}: {total_filas_inicial}")
     
     # Buscar la fila de encabezados
     fila_encabezados = buscar_fila_encabezados(df, columnas_esperadas, max_filas)
@@ -57,7 +56,7 @@ def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, ma
     # Leer los datos a partir de la fila de encabezados, sin limitar filas
     df = pd.read_excel(archivo, header=fila_encabezados)
     total_filas_datos = len(df)
-    st.write(f"Filas leídas después de establecer encabezados en {nombre_archivo}: {total_filas_datos}")
+    st.write(f"Filas leídas en {nombre_archivo}: {total_filas_datos}")
 
     # Buscar la columna 'Doc Num' entre las variantes posibles antes de normalizar
     variantes_doc_num = columnas_esperadas.get('Doc Num', ["Doc Num"])  # Obtener variantes de columnas_esperadas
@@ -74,16 +73,7 @@ def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, ma
         # Eliminar filas donde 'Doc Num' sea NaN, None o cadena vacía
         df = df[df[doc_num_col].notna() & (df[doc_num_col] != '')]
         filas_despues = len(df)
-        st.write(f"Filas después de eliminar las que tienen '{doc_num_col}' vacío en {nombre_archivo}: {filas_despues}")
-        if filas_antes > filas_despues:
-            st.info(f"Se eliminaron {filas_antes - filas_despues} filas con '{doc_num_col}' vacío.")
-    else:
-        st.warning(f"No se encontró una columna tipo 'Doc Num' en {nombre_archivo} antes de normalizar. No se aplicó filtro.")
-
-    # Inspeccionar fechas crudas antes de procesar
-    if 'fecha' in df.columns:
-        st.write(f"Fechas crudas en {nombre_archivo} (primeras 5):")
-        st.write(df['fecha'].head(5))
+        st.write(f"Filas después de eliminar '{doc_num_col}' vacíos en {nombre_archivo}: {filas_despues}")
     
     # Normalizar las columnas
     df = normalizar_dataframe(df, columnas_esperadas)
@@ -100,7 +90,6 @@ def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, ma
     
     # Mostrar columnas detectadas (para depuración)
     columnas_encontradas = [col for col in columnas_esperadas.keys() if col in df.columns]
-    st.info(f"Columnas encontradas en {nombre_archivo} después de normalizar: {columnas_encontradas}")
     
     return df
 
@@ -186,10 +175,6 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
                 formatos[formato] = formatos.get(formato, 0) + 1
         
         formato_predominante = max(formatos, key=formatos.get) if formatos else None
-        if formato_predominante:
-            st.info(f"Formato detectado en {nombre_archivo}: {formato_predominante}")
-        else:
-            st.warning(f"No se detectó formato claro en {nombre_archivo}. Intentando parseo genérico.")
         
         # Convertir fechas
         if formato_predominante:
@@ -308,7 +293,6 @@ def procesar_montos_auxiliar(df):
     # Si ya existe una columna de monto, verificar si tiene valores válidos
     if "monto" in columnas:
         if df["monto"].notna().any() and (df["monto"] != 0).any():
-            st.success("Columna de monto encontrada con valores válidos.")
             return df
     
     # Si encontramos columnas de débito y crédito
