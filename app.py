@@ -3,6 +3,7 @@ import pandas as pd
 from io import BytesIO
 from itertools import combinations
 
+st.write(f"Versión de Streamlit instalada: {st.__version__}")
 # Función para buscar la fila de encabezados
 def buscar_fila_encabezados(df, columnas_esperadas, max_filas=30):
     """
