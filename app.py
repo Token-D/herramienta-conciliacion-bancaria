@@ -827,8 +827,8 @@ if extracto_file and auxiliar_file:
         porcentaje_conciliados = len(conciliados) / len(resultados_df) * 100 if len(resultados_df) > 0 else 0
         
         st.write(f"Total de movimientos: {len(resultados_df)}")
-        st.write(f"Movimientos conciliados: {len(conciliados)} ({porcentaje_conciliados:.2f}%)")
-        st.write(f"Movimientos no conciliados: {len(no_conciliados)} ({len(no_conciliados)/len(resultados_df)*100:.2f}%)")
+        st.write(f"Movimientos conciliados: {len(conciliados)} ({porcentaje_conciliados:.1f}%)")
+        st.write(f"Movimientos no conciliados: {len(no_conciliados)} ({len(no_conciliados)/len(resultados_df)*100:.1f}%)")
 
         # Distribución por tipo de conciliación
         st.write("Distribución por tipo de conciliación:")
