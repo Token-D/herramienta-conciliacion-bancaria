@@ -51,8 +51,6 @@ def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, ma
         st.error(f"Se buscaron en las primeras {max_filas} filas. Se requieren al menos 'fecha' y una columna de monto (monto, debitos o creditos).")
         st.stop()
 
-    st.success(f"Encabezados encontrados en la fila {fila_encabezados + 1} del archivo {nombre_archivo}.")
-
     # Leer los datos a partir de la fila de encabezados, sin limitar filas
     df = pd.read_excel(archivo, header=fila_encabezados)
     total_filas_datos = len(df)
@@ -340,7 +338,6 @@ def procesar_montos_universal(df, es_extracto=False):
     """
     # Si ya existe una columna de monto con valores válidos, la mantenemos
     if "monto" in df.columns and df["monto"].notna().any() and (df["monto"] != 0).any():
-        st.success("Columna de monto encontrada con valores válidos.")
         return df
     
     # Buscar columnas de débitos y créditos (case insensitive)
