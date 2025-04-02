@@ -913,6 +913,10 @@ if extracto_file and auxiliar_file:
 
         # Procesar datos del libro auxiliar
         auxiliar_df = procesar_montos_auxiliar(auxiliar_df)
+
+        # Procesar montos en ambos DataFrames
+        auxiliar_df = procesar_montos_universal(auxiliar_df, es_extracto=False)
+        extracto_df = procesar_montos_universal(extracto_df, es_extracto=True)
         
         # Completar fechas sin año en el extracto
         extracto_df = completar_fechas_sin_anio(extracto_df, auxiliar_df)
