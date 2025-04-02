@@ -3,7 +3,6 @@ import pandas as pd
 from io import BytesIO
 from itertools import combinations
 
-st.write(f"Versión de Streamlit instalada: {st.__version__}")
 # Función para buscar la fila de encabezados
 def buscar_fila_encabezados(df, columnas_esperadas, max_filas=30):
     """
@@ -47,7 +46,6 @@ def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, ma
     
     # Si es .xls, convertir a .xlsx
     if extension == 'xls':
-        st.info(f"El archivo {nombre_archivo} es .xls. Convirtiendo a .xlsx para procesamiento...")
         try:
             # Leer el archivo .xls con xlrd
             df_temp = pd.read_excel(archivo, header=None, engine='xlrd')
