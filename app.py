@@ -3,6 +3,8 @@ import pandas as pd
 from io import BytesIO
 from itertools import combinations
 from dateutil.parser import parse as parse_date
+import re
+from collections import Counter
 
 # Función para buscar la fila de encabezados
 def buscar_fila_encabezados(df, columnas_esperadas, max_filas=30):
@@ -155,7 +157,61 @@ def normalizar_dataframe(df, columnas_esperadas):
     
     return df
 
-# Función para estandarizar el formato de fechas
+def detectar_formato_fechas(fechas_str, porcentaje_analisis=0.6):
+    """
+    Analiza un porcentaje de fechas para detectar el formato predominante (DD/MM/AAAA o MM/DD/AAAA).
+    Devuelve el formato detectado y si el año está presente.
+    """
+    # Filtrar fechas válidas (no vacías, no NaN)
+    fechas_validas = [f for f in fechas_str if pd.notna(f) and f.strip() and f not in ['nan', 'NaT']]
+    if not fechas_validas:
+        return "desconocido", False
+
+    # Tomar al menos el 60% de las fechas válidas
+    n_analizar = max(1, int(len(fechas_validas) * porcentaje_analisis))
+    fechas_muestra = fechas_validas[:n_analizar]
+
+    # Contadores para patrones
+    formatos = Counter()
+    tiene_año = Counter()
+
+    # Expresión regular para capturar componentes numéricos de la fecha
+    patron_fecha = r'^(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?$'
+
+    for fecha in fechas_muestra:
+        match = re.match(patron_fecha, fecha.replace('.', '/'))
+        if not match:
+            continue
+
+        comp1, comp2, comp3 = match.groups()
+        comp1, comp2 = int(comp1), int(comp2)
+        año_presente = comp3 is not None
+        tiene_año[año_presente] += 1
+
+        # Determinar si el primer componente es mes (1-12) o día (1-31)
+        if comp1 <= 12 and comp2 <= 31:
+            # Puede ser MM/DD o DD/MM, pero si comp1 <= 12, asumimos MM/DD a menos que comp2 <= 12
+            if comp2 <= 12:
+                # Ambos pueden ser mes, necesitamos más contexto
+                formatos["ambiguo"] += 1
+            else:
+                formatos["MM/DD/AAAA"] += 1
+        elif comp1 <= 31 and comp2 <= 12:
+            formatos["DD/MM/AAAA"] += 1
+        else:
+            formatos["desconocido"] += 1
+
+    # Determinar formato predominante
+    formato_predominante = formatos.most_common(1)[0][0] if formatos else "desconocido"
+    if formato_predominante == "ambiguo":
+        # Resolver ambigüedad asumiendo DD/MM/AAAA (común en muchos países)
+        formato_predominante = "DD/MM/AAAA"
+
+    # Determinar si la mayoría tiene año
+    año_presente = tiene_año.most_common(1)[0][0] if tiene_año else False
+
+    return formato_predominante, año_presente
+
 def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_anio=False, auxiliar_df=None):
     """
     Convierte la columna 'fecha' a datetime64, detectando automáticamente el formato de fecha.
@@ -173,54 +229,83 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
         # Determinar el año base para completar fechas sin año
         año_base = None
         if completar_anio and auxiliar_df is not None and 'fecha' in auxiliar_df.columns:
-            # Obtener el año predominante del auxiliar
             años_validos = auxiliar_df['fecha'].dropna().apply(lambda x: x.year if pd.notna(x) else None)
             año_base = años_validos.mode()[0] if not años_validos.empty else pd.Timestamp.now().year
         else:
             año_base = pd.Timestamp.now().year
 
-        # Función para parsear fechas con manejo de ambigüedades
-        def parsear_fecha(fecha_str, mes_conciliacion=None, año_base=None):
+        # Detectar formato predominante solo para extracto
+        es_extracto = "Extracto" in nombre_archivo
+        formato_fecha = "desconocido"
+        año_presente = False
+        if es_extracto:
+            formato_fecha, año_presente = detectar_formato_fechas(df['fecha_str'])
+            st.write(f"Formato de fecha detectado en {nombre_archivo}: {formato_fecha}, Año presente: {año_presente}")
+
+        # Función para parsear fechas
+        def parsear_fecha(fecha_str, mes_conciliacion=None, año_base=None, es_extracto=False, formato_fecha="desconocido"):
             if pd.isna(fecha_str) or fecha_str in ['', 'nan', 'NaT']:
                 return pd.NaT
 
             try:
-                # Intentar parsear con dateutil
+                # Normalizar separadores
+                fecha_str = fecha_str.replace('-', '/').replace('.', '/')
+
+                # Para extracto, usar formato detectado
+                if es_extracto and formato_fecha != "desconocido":
+                    partes = fecha_str.split('/')
+                    if len(partes) >= 2:
+                        comp1, comp2 = map(int, partes[:2])
+                        año = año_base
+                        if len(partes) == 3:
+                            año = int(partes[2])
+                            if len(partes[2]) == 2:
+                                año += 2000 if año < 50 else 1900
+
+                        if formato_fecha == "DD/MM/AAAA":
+                            dia, mes = comp1, comp2
+                        else:  # MM/DD/AAAA
+                            dia, mes = comp2, comp1
+
+                        # Forzar mes_conciliacion si está definido
+                        if mes_conciliacion and 1 <= mes <= 12:
+                            mes = mes_conciliacion
+
+                        if 1 <= dia <= 31 and 1 <= mes <= 12:
+                            return pd.Timestamp(year=año, month=mes, day=dia)
+
+                # Para auxiliar o si no se detectó formato, usar dateutil.parser
                 parsed = parse_date(fecha_str, dayfirst=True, fuzzy=True)
-                
-                # Si mes_conciliacion está definido, ajustar el mes si es ambiguo
-                if mes_conciliacion:
-                    # Verificar si el mes parseado no coincide con el mes esperado
-                    if parsed.month != mes_conciliacion:
-                        # Intentar reinterpretar asumiendo diferentes formatos
-                        try:
-                            # Asumir DD/MM(/AA)
-                            partes = fecha_str.replace('-', '/').split('/')
-                            if len(partes) >= 2:
-                                dia, mes = map(int, partes[:2])
-                                año = parsed.year if len(partes) == 2 else int(partes[2])
-                                if len(partes) == 2:
-                                    año = año_base
-                                if mes == mes_conciliacion:
-                                    parsed = pd.Timestamp(year=año, month=mes, day=dia)
-                        except (ValueError, IndexError):
-                            pass
-                
+
+                # Para extracto, ajustar mes si mes_conciliacion está definido
+                if es_extracto and mes_conciliacion and parsed.month != mes_conciliacion:
+                    return pd.Timestamp(year=parsed.year, month=mes_conciliacion, day=parsed.day)
+
                 return parsed
             except (ValueError, TypeError):
-                # Manejar fechas sin año explícito (ej. 12/02)
+                # Manejar fechas sin año
                 try:
-                    partes = fecha_str.replace('-', '/').split('/')
+                    partes = fecha_str.split('/')
                     if len(partes) == 2:
-                        dia, mes = map(int, partes)
-                        return pd.Timestamp(year=año_base, month=mes, day=dia)
+                        comp1, comp2 = map(int, partes[:2])
+                        if formato_fecha == "DD/MM/AAAA":
+                            dia, mes = comp1, comp2
+                        else:  # MM/DD/AAAA o desconocido
+                            dia, mes = comp2, comp1 if comp2 <= 31 and comp1 <= 12 else comp1, comp2
+
+                        # Forzar mes_conciliacion para extracto
+                        if es_extracto and mes_conciliacion:
+                            mes = mes_conciliacion
+
+                        if 1 <= dia <= 31 and 1 <= mes <= 12:
+                            return pd.Timestamp(year=año_base, month=mes, day=dia)
                     return pd.NaT
                 except (ValueError, IndexError):
                     return pd.NaT
 
         # Aplicar el parseo de fechas
         df['fecha'] = df['fecha_str'].apply(
-            lambda x: parsear_fecha(x, mes_conciliacion, año_base)
+            lambda x: parsear_fecha(x, mes_conciliacion, año_base, es_extracto, formato_fecha)
         )
 
         # Reportar fechas inválidas
@@ -230,14 +315,21 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
             st.write("Ejemplos de fechas inválidas:")
             st.write(df[df['fecha'].isna()][['fecha_original', 'fecha_str']].head())
 
-        # Filtrar por mes solo si se especifica
-        if mes_conciliacion:
+        # Depuración: Mostrar fechas parseadas
+        st.write(f"Fechas parseadas en {nombre_archivo} (primeras 10):")
+        st.write(df[['fecha_original', 'fecha_str', 'fecha']].head(10))
+
+        # Filtrar por mes solo para extracto si se especifica
+        if mes_conciliacion and es_extracto:
             filas_antes = len(df)
             df = df[df['fecha'].dt.month == mes_conciliacion]
             if len(df) < filas_antes:
                 meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
                          'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
                 st.info(f"Se filtraron {filas_antes - len(df)} registros fuera del mes {meses[mes_conciliacion-1]} en {nombre_archivo}.")
+                if filas_antes - len(df) > 0:
+                    st.write(f"Ejemplos de fechas filtradas (no en {meses[mes_conciliacion-1]}):")
+                    st.write(df[df['fecha'].dt.month != mes_conciliacion][['fecha_original', 'fecha_str', 'fecha']].head())
 
         # Limpiar columnas temporales
         df = df.drop(['fecha_str'], axis=1, errors='ignore')
