@@ -173,7 +173,6 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
         # Determinar el año base para completar fechas sin año
         año_base = None
         if completar_anio and auxiliar_df is not None and 'fecha' in auxiliar_df.columns:
-            # Obtener el año predominante del auxiliar
             años_validos = auxiliar_df['fecha'].dropna().apply(lambda x: x.year if pd.notna(x) else None)
             año_base = años_validos.mode()[0] if not años_validos.empty else pd.Timestamp.now().year
         else:
@@ -185,38 +184,42 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
                 return pd.NaT
 
             try:
-                # Intentar parsear con dateutil
+                # Normalizar separadores
+                fecha_str = fecha_str.replace('-', '/').replace('.', '/')
+
+                # Intentar parsear asumiendo DD/MM/AAAA o DD/MM
+                partes = fecha_str.split('/')
+                if len(partes) >= 2:
+                    dia, mes = map(int, partes[:2])
+                    año = año_base
+                    if len(partes) == 3:
+                        año = int(partes[2])
+                        # Completar año si es de dos dígitos (ej. 25 → 2025)
+                        if len(partes[2]) == 2:
+                            año += 2000 if año < 50 else 1900
+
+                    # Validar día y mes
+                    if 1 <= mes <= 12 and 1 <= dia <= 31:
+                        # Si mes_conciliacion está definido, forzar el mes
+                        if mes_conciliacion and mes != mes_conciliacion:
+                            # Intercambiar día y mes si es posible
+                            if 1 <= dia <= 12 and 1 <= mes <= 31:
+                                dia, mes = mes, dia
+                            else:
+                                mes = mes_conciliacion
+                        return pd.Timestamp(year=año, month=mes, day=dia)
+                    else:
+                        return pd.NaT
+
+                # Fallback: usar dateutil.parser
                 parsed = parse_date(fecha_str, dayfirst=True, fuzzy=True)
-                
-                # Si mes_conciliacion está definido, ajustar el mes si es ambiguo
-                if mes_conciliacion:
-                    # Verificar si el mes parseado no coincide con el mes esperado
-                    if parsed.month != mes_conciliacion:
-                        # Intentar reinterpretar asumiendo diferentes formatos
-                        try:
-                            # Asumir DD/MM(/AA)
-                            partes = fecha_str.replace('-', '/').split('/')
-                            if len(partes) >= 2:
-                                dia, mes = map(int, partes[:2])
-                                año = parsed.year if len(partes) == 2 else int(partes[2])
-                                if len(partes) == 2:
-                                    año = año_base
-                                if mes == mes_conciliacion:
-                                    parsed = pd.Timestamp(year=año, month=mes, day=dia)
-                        except (ValueError, IndexError):
-                            pass
-                
+                if mes_conciliacion and parsed.month != mes_conciliacion:
+                    # Forzar el mes si no coincide
+                    return pd.Timestamp(year=parsed.year, month=mes_conciliacion, day=parsed.day)
                 return parsed
+
             except (ValueError, TypeError):
-                # Manejar fechas sin año explícito (ej. 12/02)
-                try:
-                    partes = fecha_str.replace('-', '/').split('/')
-                    if len(partes) == 2:
-                        dia, mes = map(int, partes)
-                        return pd.Timestamp(year=año_base, month=mes, day=dia)
-                    return pd.NaT
-                except (ValueError, IndexError):
-                    return pd.NaT
+                return pd.NaT
 
         # Aplicar el parseo de fechas
         df['fecha'] = df['fecha_str'].apply(
@@ -230,6 +233,11 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
             st.write("Ejemplos de fechas inválidas:")
             st.write(df[df['fecha'].isna()][['fecha_original', 'fecha_str']].head())
 
+        # Depuración: Mostrar fechas parseadas para verificar
+        if mes_conciliacion:
+            st.write(f"Fechas parseadas en {nombre_archivo} (primeras 10):")
+            st.write(df[['fecha_original', 'fecha_str', 'fecha']].head(10))
+
         # Filtrar por mes solo si se especifica
         if mes_conciliacion:
             filas_antes = len(df)
@@ -238,6 +246,9 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
                 meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
                          'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
                 st.info(f"Se filtraron {filas_antes - len(df)} registros fuera del mes {meses[mes_conciliacion-1]} en {nombre_archivo}.")
+                # Mostrar fechas filtradas para depuración
+                st.write(f"Ejemplos de fechas filtradas (no en {meses[mes_conciliacion-1]}):")
+                st.write(df[df['fecha'].dt.month != mes_conciliacion][['fecha_original', 'fecha_str', 'fecha']].head())
 
         # Limpiar columnas temporales
         df = df.drop(['fecha_str'], axis=1, errors='ignore')
