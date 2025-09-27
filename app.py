@@ -6,7 +6,98 @@ from dateutil.parser import parse as parse_date
 import re
 from collections import Counter
 
+# -----------------------
+# Reglas de limpieza por banco (modular)
+# -----------------------
+def limpiar_bancolombia(serie):
+    """Ej: 2,119,101.00 -> 2119101.00"""
+    return (
+        serie.astype(str)
+        .str.replace(" ", "", regex=False)
+        .str.replace("$", "", regex=False)
+        .str.replace(",", "", regex=False)   # quitar separador de miles
+        # punto decimal ya está como '.', no tocar
+    )
+
+def limpiar_bogota_bbva(serie):
+    """Ej: $14.339.827,00  ó  -2.699.434,00 -> 14339827.00 / -2699434.00"""
+    return (
+        serie.astype(str)
+        .str.replace(" ", "", regex=False)
+        .str.replace("$", "", regex=False)
+        .str.replace(".", "", regex=False)   # quitar separador de miles
+        .str.replace(",", ".", regex=False)  # convertir coma decimal a punto
+    )
+
+def limpiar_generico(serie):
+    """
+    Intento genérico: elimina espacios y símbolos comunes y luego intenta convertir.
+    Útil como fallback para bancos nuevos hasta definir una regla específica.
+    """
+    return (
+        serie.astype(str)
+        .str.replace(" ", "", regex=False)
+        .str.replace("$", "", regex=False)
+        # por defecto quitamos comas para evitar textos con separador de miles
+        .str.replace(",", "", regex=False)
+    )
+
+# Diccionario de reglas por banco (agrega nuevas funciones aquí)
+REGLAS_BANCOS = {
+    "Bancolombia": limpiar_bancolombia,
+    "Banco de Bogotá": limpiar_bogota_bbva,
+    "BBVA": limpiar_bogota_bbva,
+    # Agrega nuevos bancos aquí: "Davivienda": limpiar_davivienda
+}
+
+# -----------------------
+# Autodetección heurística del formato de montos (muestra)
+# -----------------------
+def detectar_banco_por_muestra(serie):
+    """
+    Intenta detectar formato (Bancolombia vs Bogotá/BBVA) a partir de una muestra de strings.
+    Devuelve nombre del banco representativo ("Bancolombia" o "Banco de Bogotá") o None.
+    """
+    muestra = serie.dropna().astype(str).head(50).tolist()
+    if not muestra:
+        return None
+
+    score_bancolombia = 0
+    score_bogota = 0
+
+    for s in muestra:
+        s = s.strip()
+        if not s:
+            continue
+        if "$" in s:
+            score_bogota += 1
+        last_dot = s.rfind(".")
+        last_comma = s.rfind(",")
+        # si ambos no existen, ignorar
+        if last_dot == -1 and last_comma == -1:
+            continue
+        if last_dot > last_comma:
+            # ejemplo: '2,119,101.00' -> dot al final -> punto decimal dominando
+            score_bancolombia += 1
+        elif last_comma > last_dot:
+            # ejemplo: '14.339.827,00' -> comma decimal
+            score_bogota += 1
+        else:
+            # empate o estructura extraña: usar conteo de separadores
+            if s.count(",") >= 2 and "." in s:
+                score_bancolombia += 1
+            elif s.count(".") >= 2 and "," in s:
+                score_bogota += 1
+
+    if score_bancolombia > score_bogota:
+        return "Bancolombia"
+    if score_bogota > score_bancolombia:
+        return "Banco de Bogotá"
+    return None
+
+# -----------------------
 # Función para buscar la fila de encabezados
+# -----------------------
 def buscar_fila_encabezados(df, columnas_esperadas, max_filas=30):
     """
     Busca la fila que contiene al menos 'fecha' y una columna de monto (monto, debitos o creditos).
@@ -19,16 +110,12 @@ def buscar_fila_encabezados(df, columnas_esperadas, max_filas=30):
         fila = df.iloc[idx]
         celdas = [str(valor).lower() for valor in fila if pd.notna(valor)]
 
-        # Variables para verificar coincidencias mínimas
         tiene_fecha = False
         tiene_monto = False
 
-        # Revisar cada celda en la fila
         for celda in celdas:
-            # Verificar 'fecha'
             if 'fecha' in columnas_esperadas_lower and any(variante in celda for variante in columnas_esperadas_lower['fecha']):
                 tiene_fecha = True
-            # Verificar columnas de monto (monto, debitos o creditos)
             if 'monto' in columnas_esperadas_lower and any(variante in celda for variante in columnas_esperadas_lower['monto']):
                 tiene_monto = True
             elif 'debitos' in columnas_esperadas_lower and any(variante in celda for variante in columnas_esperadas_lower['debitos']):
@@ -36,13 +123,14 @@ def buscar_fila_encabezados(df, columnas_esperadas, max_filas=30):
             elif 'creditos' in columnas_esperadas_lower and any(variante in celda for variante in columnas_esperadas_lower['creditos']):
                 tiene_monto = True
 
-        # Si se encuentran los mínimos necesarios (fecha y algún monto)
         if tiene_fecha and tiene_monto:
             return idx
 
     return None
-    
+
+# -----------------------
 # Función para leer datos a partir de la fila de encabezados
+# -----------------------
 def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, max_filas=30):
     # Determinar la extensión del archivo
     extension = archivo.name.split('.')[-1].lower()
@@ -50,14 +138,11 @@ def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, ma
     # Si es .xls, convertir a .xlsx
     if extension == 'xls':
         try:
-            # Leer el archivo .xls con xlrd
             df_temp = pd.read_excel(archivo, header=None, engine='xlrd')
-            # Guardar como .xlsx en un buffer
             output = BytesIO()
             with pd.ExcelWriter(output, engine='openpyxl') as writer:
                 df_temp.to_excel(writer, index=False, header=None)
             output.seek(0)
-            # Actualizar el archivo a usar
             archivo = output
             st.success(f"Conversión de {nombre_archivo} de .xls a .xlsx completada.")
         except Exception as e:
@@ -67,7 +152,7 @@ def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, ma
         st.error(f"Formato de archivo no soportado: {extension}. Usa .xls o .xlsx.")
         st.stop()
         
-    # Leer el archivo de Excel sin asumir encabezados, leyendo todas las filas por defecto
+    # Leer el archivo de Excel sin asumir encabezados
     df = pd.read_excel(archivo, header=None, engine='openpyxl')
     total_filas_inicial = len(df)
     
@@ -83,7 +168,7 @@ def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, ma
     total_filas_datos = len(df)
 
     # Buscar la columna 'Doc Num' entre las variantes posibles antes de normalizar
-    variantes_doc_num = columnas_esperadas.get('Doc Num', ["Doc Num"])  # Obtener variantes de columnas_esperadas
+    variantes_doc_num = columnas_esperadas.get('Doc Num', ["Doc Num"])
     doc_num_col = None
     for col in df.columns:
         col_lower = str(col).lower().strip()
@@ -94,11 +179,10 @@ def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, ma
     # Filtrar filas donde 'Doc Num' no esté vacío
     if doc_num_col:
         filas_antes = len(df)
-        # Eliminar filas donde 'Doc Num' sea NaN, None o cadena vacía
         df = df[df[doc_num_col].notna() & (df[doc_num_col] != '')]
         filas_despues = len(df)
     
-    # Normalizar las columnas
+    # Normalizar las columnas (renombra según columnas_esperadas)
     df = normalizar_dataframe(df, columnas_esperadas)
     
     # Verificar si el DataFrame tiene al menos las columnas mínimas necesarias
@@ -106,22 +190,19 @@ def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, ma
         st.error(f"La columna obligatoria 'fecha' no se encontró en los datos leídos del archivo '{nombre_archivo}'.")
         st.stop()
     
-    # Verificar si existe al menos una columna de monto
     if 'monto' not in df.columns and ('debitos' not in df.columns or 'creditos' not in df.columns):
         st.error(f"No se encontró ninguna columna de monto (monto, debitos o creditos) en el archivo '{nombre_archivo}'.")
         st.stop()
     
-    # Mostrar columnas detectadas (para depuración)
-    columnas_encontradas = [col for col in columnas_esperadas.keys() if col in df.columns]
-    
     return df
 
+# -----------------------
 # Función para normalizar un DataFrame
+# -----------------------
 def normalizar_dataframe(df, columnas_esperadas):
     """
     Normaliza un DataFrame para que use los nombres de columnas esperados.
     """
-    # Convertir los nombres de las columnas del DataFrame a minúsculas
     df.columns = [str(col).lower().strip() for col in df.columns]
     
     # Crear un mapeo de nombres de columnas basado en las variantes
@@ -131,12 +212,11 @@ def normalizar_dataframe(df, columnas_esperadas):
             variante_lower = variante.lower().strip()
             mapeo_columnas[variante_lower] = col_esperada
     
-    # Renombrar las columnas según el mapeo
+    # Renombrar las columnas según el mapeo (buscando subcadenas)
     nuevo_nombres = []
     columnas_vistas = set()
     
     for col in df.columns:
-        # Verificar coincidencias aproximadas
         col_encontrada = False
         for variante, nombre_esperado in mapeo_columnas.items():
             if variante in col:
@@ -149,33 +229,25 @@ def normalizar_dataframe(df, columnas_esperadas):
         if not col_encontrada:
             nuevo_nombres.append(col)
     
-    # Asignar los nuevos nombres de columnas
     df.columns = nuevo_nombres
-    
-    # Eliminar columnas duplicadas después de renombrar
     df = df.loc[:, ~df.columns.duplicated(keep='first')]
     
     return df
 
+# -----------------------
+# Detección y estandarización de fechas
+# -----------------------
 def detectar_formato_fechas(fechas_str, porcentaje_analisis=0.6):
-    """
-    Analiza un porcentaje de fechas para detectar el formato predominante (DD/MM/AAAA o MM/DD/AAAA).
-    Devuelve el formato detectado y si el año está presente.
-    """
-    # Filtrar fechas válidas (no vacías, no NaN)
     fechas_validas = [f for f in fechas_str if pd.notna(f) and f.strip() and f not in ['nan', 'NaT']]
     if not fechas_validas:
         return "desconocido", False
 
-    # Tomar al menos el 60% de las fechas válidas
     n_analizar = max(1, int(len(fechas_validas) * porcentaje_analisis))
     fechas_muestra = fechas_validas[:n_analizar]
 
-    # Contadores para patrones
     formatos = Counter()
     tiene_año = Counter()
 
-    # Expresión regular para capturar componentes numéricos de la fecha
     patron_fecha = r'^(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?$'
 
     for fecha in fechas_muestra:
@@ -188,11 +260,8 @@ def detectar_formato_fechas(fechas_str, porcentaje_analisis=0.6):
         año_presente = comp3 is not None
         tiene_año[año_presente] += 1
 
-        # Determinar si el primer componente es mes (1-12) o día (1-31)
         if comp1 <= 12 and comp2 <= 31:
-            # Puede ser MM/DD o DD/MM, pero si comp1 <= 12, asumimos MM/DD a menos que comp2 <= 12
             if comp2 <= 12:
-                # Ambos pueden ser mes, necesitamos más contexto
                 formatos["ambiguo"] += 1
             else:
                 formatos["MM/DD/AAAA"] += 1
@@ -201,32 +270,23 @@ def detectar_formato_fechas(fechas_str, porcentaje_analisis=0.6):
         else:
             formatos["desconocido"] += 1
 
-    # Determinar formato predominante
     formato_predominante = formatos.most_common(1)[0][0] if formatos else "desconocido"
     if formato_predominante == "ambiguo":
-        # Resolver ambigüedad asumiendo DD/MM/AAAA (común en muchos países)
         formato_predominante = "DD/MM/AAAA"
 
-    # Determinar si la mayoría tiene año
     año_presente = tiene_año.most_common(1)[0][0] if tiene_año else False
 
     return formato_predominante, año_presente
 
 def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_anio=False, auxiliar_df=None):
-    """
-    Convierte la columna 'fecha' a datetime64, detectando automáticamente el formato de fecha.
-    Opcionalmente completa años faltantes y filtra por mes de conciliación.
-    """
     if 'fecha' not in df.columns:
         st.warning(f"No se encontró la columna 'fecha' en {nombre_archivo}.")
         return df
 
     try:
-        # Guardar copia de las fechas originales
         df['fecha_original'] = df['fecha'].copy()
         df['fecha_str'] = df['fecha'].astype(str).str.strip()
 
-        # Determinar el año base para completar fechas sin año
         año_base = None
         if completar_anio and auxiliar_df is not None and 'fecha' in auxiliar_df.columns:
             años_validos = auxiliar_df['fecha'].dropna().apply(lambda x: x.year if pd.notna(x) else None)
@@ -234,7 +294,6 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
         else:
             año_base = pd.Timestamp.now().year
 
-        # Detectar formato predominante solo para extracto
         es_extracto = "Extracto" in nombre_archivo
         formato_fecha = "desconocido"
         año_presente = False
@@ -242,16 +301,13 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
             formato_fecha, año_presente = detectar_formato_fechas(df['fecha_str'])
             st.write(f"Formato de fecha detectado en {nombre_archivo}: {formato_fecha}, Año presente: {año_presente}")
 
-        # Función para parsear fechas
         def parsear_fecha(fecha_str, mes_conciliacion=None, año_base=None, es_extracto=False, formato_fecha="desconocido"):
             if pd.isna(fecha_str) or fecha_str in ['', 'nan', 'NaT']:
                 return pd.NaT
 
             try:
-                # Normalizar separadores
                 fecha_str = fecha_str.replace('-', '/').replace('.', '/')
 
-                # Para extracto, usar formato detectado
                 if es_extracto and formato_fecha != "desconocido":
                     partes = fecha_str.split('/')
                     if len(partes) >= 2:
@@ -264,36 +320,31 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
 
                         if formato_fecha == "DD/MM/AAAA":
                             dia, mes = comp1, comp2
-                        else:  # MM/DD/AAAA
+                        else:
                             dia, mes = comp2, comp1
 
-                        # Forzar mes_conciliacion si está definido
                         if mes_conciliacion and 1 <= mes <= 12:
                             mes = mes_conciliacion
 
                         if 1 <= dia <= 31 and 1 <= mes <= 12:
                             return pd.Timestamp(year=año, month=mes, day=dia)
 
-                # Para auxiliar o si no se detectó formato, usar dateutil.parser
                 parsed = parse_date(fecha_str, dayfirst=True, fuzzy=True)
 
-                # Para extracto, ajustar mes si mes_conciliacion está definido
                 if es_extracto and mes_conciliacion and parsed.month != mes_conciliacion:
                     return pd.Timestamp(year=parsed.year, month=mes_conciliacion, day=parsed.day)
 
                 return parsed
             except (ValueError, TypeError):
-                # Manejar fechas sin año
                 try:
                     partes = fecha_str.split('/')
                     if len(partes) == 2:
                         comp1, comp2 = map(int, partes[:2])
                         if formato_fecha == "DD/MM/AAAA":
                             dia, mes = comp1, comp2
-                        else:  # MM/DD/AAAA o desconocido
+                        else:
                             dia, mes = comp2, comp1 if comp2 <= 31 and comp1 <= 12 else comp1, comp2
 
-                        # Forzar mes_conciliacion para extracto
                         if es_extracto and mes_conciliacion:
                             mes = mes_conciliacion
 
@@ -303,23 +354,19 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
                 except (ValueError, IndexError):
                     return pd.NaT
 
-        # Aplicar el parseo de fechas
         df['fecha'] = df['fecha_str'].apply(
             lambda x: parsear_fecha(x, mes_conciliacion, año_base, es_extracto, formato_fecha)
         )
 
-        # Reportar fechas inválidas
         fechas_invalidas = df['fecha'].isna().sum()
         if fechas_invalidas > 0:
             st.warning(f"Se encontraron {fechas_invalidas} fechas inválidas en {nombre_archivo}.")
             st.write("Ejemplos de fechas inválidas:")
             st.write(df[df['fecha'].isna()][['fecha_original', 'fecha_str']].head())
 
-        # Depuración: Mostrar fechas parseadas
         st.write(f"Fechas parseadas en {nombre_archivo} (primeras 10):")
         st.write(df[['fecha_original', 'fecha_str', 'fecha']].head(10))
 
-        # Filtrar por mes solo para extracto si se especifica
         if mes_conciliacion and es_extracto:
             filas_antes = len(df)
             df = df[df['fecha'].dt.month == mes_conciliacion]
@@ -331,7 +378,6 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
                     st.write(f"Ejemplos de fechas filtradas (no en {meses[mes_conciliacion-1]}):")
                     st.write(df[df['fecha'].dt.month != mes_conciliacion][['fecha_original', 'fecha_str', 'fecha']].head())
 
-        # Limpiar columnas temporales
         df = df.drop(['fecha_str'], axis=1, errors='ignore')
 
     except Exception as e:
@@ -340,27 +386,43 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
 
     return df
 
-# Función para procesar los montos
-def procesar_montos(df, nombre_archivo, es_extracto=False, invertir_signos=False):
+# -----------------------
+# Función para procesar montos (modular, aplica limpieza sólo en extractos)
+# -----------------------
+def procesar_montos(df, nombre_archivo, es_extracto=False, invertir_signos=False, banco=None):
     """
-    Procesa columnas de débitos y créditos para crear una columna 'monto' unificada.
-    Para extractos: débitos son negativos, créditos positivos.
-    Para auxiliar: débitos son positivos, créditos negativos.
+    Versión robusta y modular que:
+      - Detecta columnas débito/credito o 'monto'
+      - Si es extracto (es_extracto=True) aplica limpieza por banco (si se indicó)
+      - Si es auxiliar (es_extracto=False) hace la conversión numérica simple
+      - Convierte a numeric (float64) y crea/actualiza columna 'monto'
     """
-    columnas = df.columns.str.lower()
+    # Asegurar nombres como strings
+    cols_orig = list(df.columns)
+    cols_lower = [str(c).lower() for c in cols_orig]
 
-    # Verificar si ya existe una columna 'monto' válida
-    if "monto" in columnas and df["monto"].notna().any() and (df["monto"] != 0).any():
-        return df
+    # Verificar si ya existe una columna 'monto' válida y numérica
+    if "monto" in cols_lower:
+        col_monto_name = cols_orig[cols_lower.index("monto")]
+        try:
+            df[col_monto_name] = pd.to_numeric(df[col_monto_name], errors="coerce")
+            if df[col_monto_name].notna().any():
+                # Normalizar nombre a 'monto' (minúscula)
+                if col_monto_name != "monto":
+                    df = df.rename(columns={col_monto_name: "monto"})
+                return df
+        except Exception:
+            pass
 
-    # Definir términos para identificar débitos y créditos
-    terminos_debitos = ["deb", "debe", "cargo", "débito", "valor débito"]
-    terminos_creditos = ["cred", "haber", "abono", "crédito", "valor crédito"]
-    cols_debito = [col for col in df.columns if any(term in col.lower() for term in terminos_debitos)]
-    cols_credito = [col for col in df.columns if any(term in col.lower() for term in terminos_creditos)]
+    # términos para detectar columnas de debitos/creditos
+    terminos_debitos = ["deb", "debe", "cargo", "débito", "valor débito", "debitos", "debitos"]
+    terminos_creditos = ["cred", "haber", "abono", "crédito", "valor crédito", "creditos", "creditos"]
+
+    cols_debito = [col for col in df.columns if any(term in str(col).lower() for term in terminos_debitos)]
+    cols_credito = [col for col in df.columns if any(term in str(col).lower() for term in terminos_creditos)]
 
     # Si no hay columnas de monto, débitos ni créditos, advertir
-    if not cols_debito and not cols_credito and "monto" not in columnas:
+    if not cols_debito and not cols_credito and "monto" not in cols_lower:
         st.warning(f"No se encontraron columnas de monto, débitos o créditos en {nombre_archivo}.")
         return df
 
@@ -372,49 +434,90 @@ def procesar_montos(df, nombre_archivo, es_extracto=False, invertir_signos=False
         signo_debito = 1 if invertir_signos else -1
         signo_credito = -1 if invertir_signos else 1
     else:
-        signo_debito = 1  # Auxiliar no invierte signos
+        signo_debito = 1
         signo_credito = -1
+
+    # Determinar función de limpieza: sólo aplicable a extractos
+    limpiar_func = None
+    if es_extracto:
+        if banco and banco in REGLAS_BANCOS:
+            limpiar_func = REGLAS_BANCOS[banco]
+        else:
+            # intentar autodetect basándose en la primera columna encontrada
+            muestra_col = None
+            if cols_debito:
+                muestra_col = df[cols_debito[0]].astype(str)
+            elif cols_credito:
+                muestra_col = df[cols_credito[0]].astype(str)
+            elif "monto" in df.columns:
+                muestra_col = df["monto"].astype(str)
+            if muestra_col is not None:
+                detected = detectar_banco_por_muestra(muestra_col)
+                if detected and detected in REGLAS_BANCOS:
+                    limpiar_func = REGLAS_BANCOS[detected]
+    # Si no detectó y es extracto, usar generico como fallback
+    if es_extracto and limpiar_func is None:
+        limpiar_func = limpiar_generico
 
     # Procesar débitos
     for col in cols_debito:
         try:
-            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
-            df["monto"] += df[col] * signo_debito
+            serie = df[col]
+            if es_extracto and limpiar_func:
+                serie_limpia = limpiar_func(serie.astype(str))
+                serie_num = pd.to_numeric(serie_limpia, errors='coerce').fillna(0)
+            else:
+                serie_num = pd.to_numeric(serie, errors='coerce').fillna(0)
+            df[col] = serie_num
+            df["monto"] += serie_num * signo_debito
         except Exception as e:
             st.warning(f"Error al procesar columna de débito '{col}' en {nombre_archivo}: {e}")
 
     # Procesar créditos
     for col in cols_credito:
         try:
-            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
-            df["monto"] += df[col] * signo_credito
+            serie = df[col]
+            if es_extracto and limpiar_func:
+                serie_limpia = limpiar_func(serie.astype(str))
+                serie_num = pd.to_numeric(serie_limpia, errors='coerce').fillna(0)
+            else:
+                serie_num = pd.to_numeric(serie, errors='coerce').fillna(0)
+            df[col] = serie_num
+            df["monto"] += serie_num * signo_credito
         except Exception as e:
             st.warning(f"Error al procesar columna de crédito '{col}' en {nombre_archivo}: {e}")
 
+    # Si aún no hay columnas de debitos/creditos pero hay columna 'monto' textual
+    if ("monto" in df.columns) and not cols_debito and not cols_credito:
+        try:
+            serie = df["monto"]
+            if es_extracto and limpiar_func:
+                serie_limpia = limpiar_func(serie.astype(str))
+                df["monto"] = pd.to_numeric(serie_limpia, errors='coerce').fillna(0)
+            else:
+                df["monto"] = pd.to_numeric(serie, errors='coerce').fillna(0)
+        except Exception as e:
+            st.warning(f"Error al convertir columna 'monto' en {nombre_archivo}: {e}")
+
     # Verificar resultado
     if df["monto"].eq(0).all() and (cols_debito or cols_credito):
-        st.warning(f"La columna 'monto' resultó en ceros en {nombre_archivo}. Verifica las columnas de débitos/créditos.")
+        st.warning(f"La columna 'monto' resultó en ceros o no se detectaron valores numéricos en {nombre_archivo}.")
 
     return df
 
+# -----------------------
 # Función para encontrar combinaciones que sumen un monto específico
+# -----------------------
 def encontrar_combinaciones(df, monto_objetivo, tolerancia=0.01, max_combinacion=4):
-    """
-    Encuentra combinaciones de valores en df['monto'] que sumen aproximadamente monto_objetivo.
-    Devuelve lista de índices de las filas que conforman la combinación.
-    """
-    # Asegurarse de que los montos sean numéricos
     movimientos = []
     indices_validos = []
     
     for idx, valor in zip(df.index, df["monto"]):
         try:
-            # Intentar convertir a numérico
             valor_num = float(valor)
             movimientos.append(valor_num)
             indices_validos.append(idx)
         except (ValueError, TypeError):
-            # Ignorar valores que no se pueden convertir a flotante
             continue
     
     if not movimientos:
@@ -422,13 +525,11 @@ def encontrar_combinaciones(df, monto_objetivo, tolerancia=0.01, max_combinacion
     
     combinaciones_validas = []
     
-    # Convertir monto_objetivo a numérico
     try:
         monto_objetivo = float(monto_objetivo)
     except (ValueError, TypeError):
         return []
     
-    # Limitar la búsqueda a combinaciones pequeñas
     for r in range(1, min(max_combinacion, len(movimientos)) + 1):
         for combo_indices in combinations(range(len(movimientos)), r):
             combo_valores = [movimientos[i] for i in combo_indices]
@@ -437,54 +538,43 @@ def encontrar_combinaciones(df, monto_objetivo, tolerancia=0.01, max_combinacion
                 indices_combinacion = [indices_validos[i] for i in combo_indices]
                 combinaciones_validas.append((indices_combinacion, combo_valores))
     
-    # Ordenar por tamaño de combinación (preferimos las más pequeñas)
     combinaciones_validas.sort(key=lambda x: len(x[0]))
     
     if combinaciones_validas:
-        return combinaciones_validas[0][0]  # Devolver los índices de la mejor combinación
+        return combinaciones_validas[0][0]
     return []
 
-# Función para la conciliación directa (uno a uno)
+# -----------------------
+# Funciones de conciliación (directa y por agrupación)
+# -----------------------
 def conciliacion_directa(extracto_df, auxiliar_df):
-    """
-    Realiza la conciliación directa entre el extracto bancario y el libro auxiliar.
-    Empareja registros por fecha y monto, asegurando una relación 1:1 sin reutilizar registros.
-    El numero_movimiento puede repetirse y no se usa como criterio de unicidad.
-    """
     resultados = []
     extracto_conciliado_idx = set()
     auxiliar_conciliado_idx = set()
     
-    # Crear copias para no modificar los DataFrames originales
     extracto_df = extracto_df.copy()
     auxiliar_df = auxiliar_df.copy()
     extracto_df['fecha_solo'] = extracto_df['fecha'].dt.date
     auxiliar_df['fecha_solo'] = auxiliar_df['fecha'].dt.date
         
-    # Iterar sobre el extracto
     for idx_extracto, fila_extracto in extracto_df.iterrows():
         if idx_extracto in extracto_conciliado_idx or pd.isna(fila_extracto['fecha_solo']):
             continue
         
-        # Filtrar registros del auxiliar no conciliados
         auxiliar_no_conciliado = auxiliar_df[~auxiliar_df.index.isin(auxiliar_conciliado_idx)]
         
-        # Buscar coincidencias por fecha y monto
         coincidencias = auxiliar_no_conciliado[
             (auxiliar_no_conciliado['fecha_solo'] == fila_extracto['fecha_solo']) & 
             (abs(auxiliar_no_conciliado['monto'] - fila_extracto['monto']) < 0.01)
         ]
         
         if not coincidencias.empty:
-            # Tomar el primer registro no conciliado del auxiliar
             idx_auxiliar = coincidencias.index[0]
             fila_auxiliar = coincidencias.iloc[0]
             
-            # Marcar como conciliados
             extracto_conciliado_idx.add(idx_extracto)
             auxiliar_conciliado_idx.add(idx_auxiliar)
             
-            # Añadir entrada del extracto bancario
             resultados.append({
                 'fecha': fila_extracto['fecha'],
                 'tercero': '',
@@ -499,7 +589,6 @@ def conciliacion_directa(extracto_df, auxiliar_df):
                 'tipo_registro': 'extracto'
             })
 
-            # Añadir entrada del libro auxiliar
             resultados.append({
                 'fecha': fila_auxiliar['fecha'],
                 'tercero': fila_auxiliar.get('tercero', ''),
@@ -514,7 +603,6 @@ def conciliacion_directa(extracto_df, auxiliar_df):
                 'tipo_registro': 'auxiliar'
             })
     
-    # Agregar registros no conciliados del extracto
     for idx_extracto, fila_extracto in extracto_df.iterrows():
         if idx_extracto not in extracto_conciliado_idx:
             resultados.append({
@@ -531,7 +619,6 @@ def conciliacion_directa(extracto_df, auxiliar_df):
                 'tipo_registro': 'extracto'
             })
     
-    # Agregar registros no conciliados del libro auxiliar
     for idx_auxiliar, fila_auxiliar in auxiliar_df.iterrows():
         if idx_auxiliar not in auxiliar_conciliado_idx:
             resultados.append({
@@ -551,22 +638,15 @@ def conciliacion_directa(extracto_df, auxiliar_df):
     resultados_df = pd.DataFrame(resultados)
     return resultados_df, extracto_conciliado_idx, auxiliar_conciliado_idx
 
-# Función para la conciliación por agrupación en el libro auxiliar
 def conciliacion_agrupacion_auxiliar(extracto_df, auxiliar_df, extracto_conciliado_idx, auxiliar_conciliado_idx):
-    """
-    Busca grupos de valores en el libro auxiliar que sumen el monto de un movimiento en el extracto.
-    """
     resultados = []
     nuevos_extracto_conciliado = set()
     nuevos_auxiliar_conciliado = set()
     
-    # Filtrar los registros aún no conciliados
     extracto_no_conciliado = extracto_df[~extracto_df.index.isin(extracto_conciliado_idx)]
     auxiliar_no_conciliado = auxiliar_df[~auxiliar_df.index.isin(auxiliar_conciliado_idx)]
     
-    # Para cada movimiento no conciliado del extracto
     for idx_extracto, fila_extracto in extracto_no_conciliado.iterrows():
-        # Buscar combinaciones en el libro auxiliar
         indices_combinacion = encontrar_combinaciones(
             auxiliar_no_conciliado, 
             fila_extracto["monto"],
@@ -574,15 +654,12 @@ def conciliacion_agrupacion_auxiliar(extracto_df, auxiliar_df, extracto_concilia
         )
         
         if indices_combinacion:
-            # Marcar como conciliados
             nuevos_extracto_conciliado.add(idx_extracto)
             nuevos_auxiliar_conciliado.update(indices_combinacion)
             
-            # Obtener números de documento
             docs_conciliacion = auxiliar_no_conciliado.loc[indices_combinacion, "numero_movimiento"].astype(str).tolist()
             docs_conciliacion = [str(doc) for doc in docs_conciliacion]
             
-            # Añadir a resultados - Movimiento del extracto
             resultados.append({
                 'fecha': fila_extracto["fecha"],
                 'tercero': '',
@@ -597,7 +674,6 @@ def conciliacion_agrupacion_auxiliar(extracto_df, auxiliar_df, extracto_concilia
                 'tipo_registro': 'extracto'
             })
             
-            # Añadir a resultados - Cada movimiento del libro auxiliar en la combinación
             for idx_aux in indices_combinacion:
                 fila_aux = auxiliar_no_conciliado.loc[idx_aux]
                 resultados.append({
@@ -616,22 +692,15 @@ def conciliacion_agrupacion_auxiliar(extracto_df, auxiliar_df, extracto_concilia
     
     return pd.DataFrame(resultados), nuevos_extracto_conciliado, nuevos_auxiliar_conciliado
 
-# Función para la conciliación por agrupación en el extracto bancario
 def conciliacion_agrupacion_extracto(extracto_df, auxiliar_df, extracto_conciliado_idx, auxiliar_conciliado_idx):
-    """
-    Busca grupos de valores en el extracto que sumen el monto de un movimiento en el libro auxiliar.
-    """
     resultados = []
     nuevos_extracto_conciliado = set()
     nuevos_auxiliar_conciliado = set()
     
-    # Filtrar los registros aún no conciliados
     extracto_no_conciliado = extracto_df[~extracto_df.index.isin(extracto_conciliado_idx)]
     auxiliar_no_conciliado = auxiliar_df[~auxiliar_df.index.isin(auxiliar_conciliado_idx)]
     
-    # Para cada movimiento no conciliado del libro auxiliar
     for idx_auxiliar, fila_auxiliar in auxiliar_no_conciliado.iterrows():
-        # Buscar combinaciones en el extracto
         indices_combinacion = encontrar_combinaciones(
             extracto_no_conciliado, 
             fila_auxiliar["monto"],
@@ -639,15 +708,12 @@ def conciliacion_agrupacion_extracto(extracto_df, auxiliar_df, extracto_concilia
         )
         
         if indices_combinacion:
-            # Marcar como conciliados
             nuevos_auxiliar_conciliado.add(idx_auxiliar)
             nuevos_extracto_conciliado.update(indices_combinacion)
             
-            # Obtener números de movimiento
             nums_movimiento = extracto_no_conciliado.loc[indices_combinacion, "numero_movimiento"].astype(str).tolist()
             nums_movimiento = [str(num) for num in nums_movimiento]
             
-            # Añadir a resultados - Movimiento del libro auxiliar
             resultados.append({
                 'fecha': fila_auxiliar["fecha"],
                 'tercero': fila_auxiliar.get('tercero', ''),
@@ -662,7 +728,6 @@ def conciliacion_agrupacion_extracto(extracto_df, auxiliar_df, extracto_concilia
                 'tipo_registro': 'auxiliar'
             })
             
-            # Añadir a resultados - Cada movimiento del extracto en la combinación
             for idx_ext in indices_combinacion:
                 fila_ext = extracto_no_conciliado.loc[idx_ext]
                 resultados.append({
@@ -681,33 +746,26 @@ def conciliacion_agrupacion_extracto(extracto_df, auxiliar_df, extracto_concilia
     
     return pd.DataFrame(resultados), nuevos_extracto_conciliado, nuevos_auxiliar_conciliado
 
+# -----------------------
 # Función principal de conciliación
+# -----------------------
 def conciliar_banco_completo(extracto_df, auxiliar_df):
-    """
-    Implementa la lógica completa de conciliación.
-    """
-    # 1. Conciliación directa (uno a uno)
     resultados_directa, extracto_conciliado_idx, auxiliar_conciliado_idx = conciliacion_directa(
         extracto_df, auxiliar_df
     )
     
-    # 2. Conciliación por agrupación en el libro auxiliar
     resultados_agrup_aux, nuevos_extracto_conc1, nuevos_auxiliar_conc1 = conciliacion_agrupacion_auxiliar(
         extracto_df, auxiliar_df, extracto_conciliado_idx, auxiliar_conciliado_idx
     )
     
-    # Actualizar índices de conciliados
     extracto_conciliado_idx.update(nuevos_extracto_conc1)
     auxiliar_conciliado_idx.update(nuevos_auxiliar_conc1)
     
-    # 3. Conciliación por agrupación en el extracto bancario
     resultados_agrup_ext, nuevos_extracto_conc2, nuevos_auxiliar_conc2 = conciliacion_agrupacion_extracto(
         extracto_df, auxiliar_df, extracto_conciliado_idx, auxiliar_conciliado_idx
     )
     
-    # Filtrar resultados directos para eliminar los que luego fueron conciliados por agrupación
     if not resultados_directa.empty:
-        # Eliminar los registros no conciliados que luego se conciliaron por agrupación
         indices_a_eliminar = []
         for idx, fila in resultados_directa.iterrows():
             if fila['estado'] == 'No Conciliado':
@@ -715,23 +773,23 @@ def conciliar_banco_completo(extracto_df, auxiliar_df):
                    (fila['tipo_registro'] == 'auxiliar' and fila['index_original'] in nuevos_auxiliar_conc1.union(nuevos_auxiliar_conc2)):
                     indices_a_eliminar.append(idx)
         
-        # Eliminar los registros identificados
         if indices_a_eliminar:
             resultados_directa = resultados_directa.drop(indices_a_eliminar)
     
-    # Combinar resultados
     resultados_finales = pd.concat([
         resultados_directa,
         resultados_agrup_aux,
         resultados_agrup_ext
     ], ignore_index=True)
     
-    # Eliminar columnas auxiliares antes de devolver los resultados finales
     if 'index_original' in resultados_finales.columns:
         resultados_finales = resultados_finales.drop(['index_original', 'tipo_registro'], axis=1)
     
     return resultados_finales
 
+# -----------------------
+# Formato Excel (para descarga)
+# -----------------------
 def aplicar_formato_excel(writer, resultados_df):
     worksheet = writer.sheets['Resultados']
     workbook = writer.book
@@ -797,7 +855,9 @@ def aplicar_formato_excel(writer, resultados_df):
                             else:
                                 worksheet.write(row_num, col_idx, valor, formato_no_conciliado)
 
-# Interfaz de Streamlit
+# -----------------------
+# Interfaz de Streamlit (principal)
+# -----------------------
 st.title("Herramienta de Conciliación Bancaria Automática")
 
 st.subheader("Configuración")
@@ -805,23 +865,23 @@ meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto
 mes_seleccionado = st.selectbox("Mes a conciliar (opcional):", ["Todos"] + meses)
 mes_conciliacion = meses.index(mes_seleccionado) + 1 if mes_seleccionado != "Todos" else None
 
-tipos_aceptados = [
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",  # .xlsx
-    "application/vnd.ms-excel",  # .xls
-    "application/excel",  # Variante .xls
-    "application/x-excel",  # Variante .xls
-    "application/x-msexcel",  # Variante .xls
-    "application/octet-stream"  # Por si el navegador lo detecta genéricamente
-]
-# Aceptar cualquier tipo y validar manualmente
-extracto_file = st.file_uploader("Subir Extracto Bancario (Excel)")  # Sin type=
+# Selección de banco (solo una vez para el extracto)
+banco_extracto = st.selectbox(
+    "Banco del extracto (elige o deja 'Auto-detect'):",
+    ["Auto-detect", "Bancolombia", "Banco de Bogotá", "BBVA"]
+)
+# Normalizamos a None si el usuario eligió Auto-detect
+banco_extracto = None if banco_extracto == "Auto-detect" else banco_extracto
+
+# Accept file uploads (sin type= para dar flexibilidad, validamos manualmente)
+extracto_file = st.file_uploader("Subir Extracto Bancario (Excel)")
 if extracto_file:
     extension = extracto_file.name.split('.')[-1].lower()
     if extension not in ['xls', 'xlsx']:
         st.error(f"Formato no soportado para Extracto: {extension}. Usa .xls o .xlsx.")
         extracto_file = None
 
-auxiliar_file = st.file_uploader("Subir Libro Auxiliar (Excel)")  # Sin type=
+auxiliar_file = st.file_uploader("Subir Libro Auxiliar (Excel)")
 if auxiliar_file:
     extension = auxiliar_file.name.split('.')[-1].lower()
     if extension not in ['xls', 'xlsx']:
@@ -832,7 +892,10 @@ if auxiliar_file:
 if 'invertir_signos' not in st.session_state:
     st.session_state.invertir_signos = False
 
-def realizar_conciliacion(extracto_file, auxiliar_file, mes_conciliacion, invertir_signos):
+# -----------------------
+# actualizar realizar_conciliacion para aceptar banco_extracto
+# -----------------------
+def realizar_conciliacion(extracto_file, auxiliar_file, mes_conciliacion, invertir_signos, banco_extracto=None):
     # Definir columnas esperadas
     columnas_esperadas_extracto = {
         "fecha": ["fecha de operación", "fecha", "date", "fecha_operacion", "f. operación", "fecha de sistema"],
@@ -857,8 +920,10 @@ def realizar_conciliacion(extracto_file, auxiliar_file, mes_conciliacion, invert
     auxiliar_df = leer_datos_desde_encabezados(auxiliar_file, columnas_esperadas_auxiliar, "Libro Auxiliar")
 
     # Procesar montos
-    auxiliar_df = procesar_montos(auxiliar_df, "Libro Auxiliar", es_extracto=False)
-    extracto_df = procesar_montos(extracto_df, "Extracto Bancario", es_extracto=True, invertir_signos=invertir_signos)
+    # - Auxiliar: no se le aplica limpieza por banco (estructura fija)
+    auxiliar_df = procesar_montos(auxiliar_df, "Libro Auxiliar", es_extracto=False, invertir_signos=False, banco=None)
+    # - Extracto: aplicar limpieza según banco seleccionado (o autodetect si banco_extracto es None)
+    extracto_df = procesar_montos(extracto_df, "Extracto Bancario", es_extracto=True, invertir_signos=invertir_signos, banco=banco_extracto)
 
     # Estandarizar fechas
     auxiliar_df = estandarizar_fechas(auxiliar_df, "Libro Auxiliar", mes_conciliacion=None)
@@ -879,11 +944,15 @@ def realizar_conciliacion(extracto_file, auxiliar_file, mes_conciliacion, invert
     
     return resultados_df, extracto_df, auxiliar_df
 
+# -----------------------
+# Bloque principal: ejecutar conciliación cuando ambos archivos estén cargados
+# -----------------------
 if extracto_file and auxiliar_file:
     try:
-        # Realizar conciliación inicial
+        # Realizar conciliación inicial (pasamos banco_extracto aquí)
         resultados_df, extracto_df, auxiliar_df = realizar_conciliacion(
-            extracto_file, auxiliar_file, mes_conciliacion, st.session_state.invertir_signos
+            extracto_file, auxiliar_file, mes_conciliacion, st.session_state.invertir_signos,
+            banco_extracto=banco_extracto
         )
 
         # Depurar resultados
@@ -904,13 +973,20 @@ if extracto_file and auxiliar_file:
         # Distribución por tipo de conciliación
         st.write("Distribución por tipo de conciliación:")
         distribucion = resultados_df.groupby(['tipo_conciliacion', 'origen']).size().reset_index(name='subtotal')
-        distribucion_pivot = distribucion.pivot_table(
-            index='tipo_conciliacion', columns='origen', values='subtotal', fill_value=0
-        ).reset_index()
-        distribucion_pivot.columns = ['Tipo de Conciliación', 'Extracto Bancario', 'Libro Auxiliar']
-        distribucion_pivot['Cantidad Total'] = distribucion_pivot['Extracto Bancario'] + distribucion_pivot['Libro Auxiliar']
-        distribucion_pivot = distribucion_pivot[['Tipo de Conciliación', 'Extracto Bancario', 'Libro Auxiliar', 'Cantidad Total']]
-        st.write(distribucion_pivot)
+        if not distribucion.empty:
+            distribucion_pivot = distribucion.pivot_table(
+                index='tipo_conciliacion', columns='origen', values='subtotal', fill_value=0
+            ).reset_index()
+            # Asegurar columnas
+            extracto_col = 'Extracto Bancario' if 'Extracto Bancario' in distribucion_pivot.columns else (list(distribucion_pivot.columns[1:2])[0] if distribucion_pivot.shape[1]>1 else None)
+            # Construir de forma segura
+            try:
+                distribucion_pivot.columns = ['Tipo de Conciliación', 'Extracto Bancario', 'Libro Auxiliar']
+                distribucion_pivot['Cantidad Total'] = distribucion_pivot['Extracto Bancario'] + distribucion_pivot['Libro Auxiliar']
+                distribucion_pivot = distribucion_pivot[['Tipo de Conciliación', 'Extracto Bancario', 'Libro Auxiliar', 'Cantidad Total']]
+                st.write(distribucion_pivot)
+            except Exception:
+                st.write(distribucion)
 
         st.write("Detalle de todos los movimientos:")
         st.write(resultados_df)
