@@ -747,31 +747,40 @@ def conciliacion_agrupacion_extracto(extracto_df, auxiliar_df, extracto_concilia
     return pd.DataFrame(resultados), nuevos_extracto_conciliado, nuevos_auxiliar_conciliado
 
 # ===============================
-# Función optimizada para conciliar
+# ===============================
+# Función optimizada para conciliar sin cross merge
 # ===============================
 def conciliar(extracto, auxiliar, tolerancia=50):
     """
-    Conciliación eficiente usando pandas merge.
-    - extracto: DataFrame con columna VALOR
-    - auxiliar: DataFrame con columna VALOR
+    Conciliación eficiente sin hacer cross merge.
+    Busca coincidencias con tolerancia de manera iterativa,
+    pero evitando explosión de combinaciones.
     """
-    # Crear combinaciones cruzadas
-    df_merge = extracto.merge(auxiliar, how="cross", suffixes=("_ext", "_aux"))
+    conciliados = []
+    usados_aux = set()
 
-    # Calcular diferencia
-    df_merge["diferencia"] = (df_merge["VALOR_ext"] - df_merge["VALOR_aux"]).abs()
+    for valor_ext in extracto["VALOR"]:
+        # Filtramos solo los auxiliares que no se han usado
+        candidatos = auxiliar.loc[~auxiliar.index.isin(usados_aux), "VALOR"]
 
-    # Filtrar conciliados con tolerancia
-    conciliados = df_merge[df_merge["diferencia"] <= tolerancia].copy()
+        # Calculamos diferencia absoluta
+        diferencias = (candidatos - valor_ext).abs()
 
-    # Eliminar duplicados (cada valor se empareja solo una vez)
-    conciliados = conciliados.drop_duplicates(subset=["VALOR_ext", "VALOR_aux"])
+        # Buscamos el mejor match (mínima diferencia dentro de la tolerancia)
+        if not diferencias.empty:
+            idx_min = diferencias.idxmin()
+            if diferencias[idx_min] <= tolerancia:
+                conciliados.append((valor_ext, auxiliar.loc[idx_min, "VALOR"]))
+                usados_aux.add(idx_min)
 
-    # Obtener no conciliados
-    no_conciliados_ext = extracto.loc[~extracto["VALOR"].isin(conciliados["VALOR_ext"])]
-    no_conciliados_aux = auxiliar.loc[~auxiliar["VALOR"].isin(conciliados["VALOR_aux"])]
+    # Conciliados dataframe
+    conciliados_df = pd.DataFrame(conciliados, columns=["Extracto", "Auxiliar"])
 
-    return conciliados[["VALOR_ext", "VALOR_aux"]], no_conciliados_ext, no_conciliados_aux
+    # No conciliados
+    no_conciliados_ext = extracto.loc[~extracto["VALOR"].isin(conciliados_df["Extracto"])]
+    no_conciliados_aux = auxiliar.loc[~auxiliar.index.isin(usados_aux)]
+
+    return conciliados_df, no_conciliados_ext, no_conciliados_aux
 
 # -----------------------
 # Formato Excel (para descarga)
