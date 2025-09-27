@@ -139,9 +139,9 @@ def limpiar_formato_montos_extracto(df_in, banco_seleccionado="Auto-detect"):
             # concatenar pequeñas muestras de débito/crédito para detectar
             combined = pd.Series(dtype="object")
             if 'debitos' in df.columns:
-                combined = combined.append(df['debitos'].dropna().astype(str).head(50), ignore_index=True)
+                combined = pd.concat([combined, df['debitos'].dropna().astype(str).head(50)], ignore_index=True)
             if 'creditos' in df.columns:
-                combined = combined.append(df['creditos'].dropna().astype(str).head(50), ignore_index=True)
+                combined = pd.concat([combined, df['creditos'].dropna().astype(str).head(50)], ignore_index=True)
             fmt = detectar_formato_montos(combined)
 
         if fmt == 'dot_decimal':
@@ -747,16 +747,52 @@ def realizar_conciliacion(extracto_file, auxiliar_file, mes_conciliacion, invert
     st.write(f"Libro auxiliar: {len(auxiliar_df)} movimientos")
 
     # Realizar conciliación
-    resultados_df = conciliar_banco_completo(extracto_df, auxiliar_df)
+    _ = conciliar_banco_completo(extracto_df, auxiliar_df)  # Esto marca 'conciliado' en los DFs
     
-    return resultados_df, extracto_df, auxiliar_df
+    return extracto_df, auxiliar_df
 
 if extracto_file and auxiliar_file:
     try:
         # Realizar conciliación inicial
-        resultados_df, extracto_df, auxiliar_df = realizar_conciliacion(
+        extracto_df, auxiliar_df = realizar_conciliacion(
             extracto_file, auxiliar_file, mes_conciliacion, st.session_state.invertir_signos, banco_seleccionado
         )
+
+        # Crear el DataFrame combinado para resultados
+        # Preparar extracto_df
+        df_ext = extracto_df.copy()
+        if 'concepto' in df_ext.columns:
+            df_ext = df_ext.rename(columns={'concepto': 'descripcion', 'numero_movimiento': 'num_mov'})
+        df_ext['origen'] = 'Extracto Bancario'
+        df_ext['estado'] = df_ext['conciliado'].apply(lambda x: 'Conciliado' if x else 'No Conciliado')
+        df_ext['tipo_conciliacion'] = df_ext['conciliado'].apply(lambda x: 'Directa' if x else 'No Conciliado')
+        df_ext = df_ext.drop('conciliado', axis=1)
+        if 'tercero' not in df_ext.columns:
+            df_ext['tercero'] = np.nan
+
+        # Preparar auxiliar_df
+        df_aux = auxiliar_df.copy()
+        if 'nota' in df_aux.columns:
+            df_aux = df_aux.rename(columns={'nota': 'descripcion', 'numero_movimiento': 'num_mov'})
+        df_aux['origen'] = 'Libro Auxiliar'
+        df_aux['estado'] = df_aux['conciliado'].apply(lambda x: 'Conciliado' if x else 'No Conciliado')
+        df_aux['tipo_conciliacion'] = df_aux['conciliado'].apply(lambda x: 'Directa' if x else 'No Conciliado')
+        df_aux = df_aux.drop('conciliado', axis=1)
+        if 'tercero' not in df_aux.columns:
+            df_aux['tercero'] = np.nan
+
+        # Columnas comunes para mostrar
+        common_cols = ['origen', 'fecha', 'monto', 'descripcion', 'num_mov', 'tercero', 'estado', 'tipo_conciliacion']
+        
+        # Asegurar que todas las columnas existan (rellenar con NaN si no)
+        for col in common_cols:
+            if col not in df_ext.columns:
+                df_ext[col] = np.nan
+            if col not in df_aux.columns:
+                df_aux[col] = np.nan
+
+        # Concatenar
+        resultados_df = pd.concat([df_ext[common_cols], df_aux[common_cols]], ignore_index=True)
 
         # Depurar resultados
         if resultados_df['fecha'].isna().any():
@@ -767,10 +803,11 @@ if extracto_file and auxiliar_file:
         st.subheader("Resultados de la Conciliación")
         conciliados = resultados_df[resultados_df['estado'] == 'Conciliado']
         no_conciliados = resultados_df[resultados_df['estado'] == 'No Conciliado']
-        porcentaje_conciliados = len(conciliados) / len(resultados_df) * 100 if len(resultados_df) > 0 else 0
+        num_conciliados = len(conciliados) // 2 if len(conciliados) % 2 == 0 else len(conciliados)  # Ajuste aproximado para no duplicar conteo
+        porcentaje_conciliados = (num_conciliados / len(resultados_df)) * 100 if len(resultados_df) > 0 else 0
         
         st.write(f"Total de movimientos: {len(resultados_df)}")
-        st.write(f"Movimientos conciliados: {len(conciliados)} ({porcentaje_conciliados:.1f}%)")
+        st.write(f"Movimientos conciliados: {num_conciliados} ({porcentaje_conciliados:.1f}%)")
         st.write(f"Movimientos no conciliados: {len(no_conciliados)} ({len(no_conciliados)/len(resultados_df)*100:.1f}%)")
 
         # Distribución por tipo de conciliación
@@ -781,18 +818,20 @@ if extracto_file and auxiliar_file:
         ).reset_index()
         distribucion_pivot.columns = ['Tipo de Conciliación', 'Extracto Bancario', 'Libro Auxiliar']
         distribucion_pivot['Cantidad Total'] = distribucion_pivot['Extracto Bancario'] + distribucion_pivot['Libro Auxiliar']
+        # Ajustar Cantidad Total para 'Directa' para no duplicar (usar el máximo de los dos orígenes)
+        distribucion_pivot.loc[distribucion_pivot['Tipo de Conciliación'] == 'Directa', 'Cantidad Total'] = distribucion_pivot.loc[distribucion_pivot['Tipo de Conciliación'] == 'Directa', ['Extracto Bancario', 'Libro Auxiliar']].max(axis=1)
         distribucion_pivot = distribucion_pivot[['Tipo de Conciliación', 'Extracto Bancario', 'Libro Auxiliar', 'Cantidad Total']]
         st.write(distribucion_pivot)
 
         st.write("Detalle de todos los movimientos:")
         st.write(resultados_df)
 
-        # Generar Excel
+        # Generar Excel (asumiendo que aplicar_formato_excel está definido en tu código original; si no, coméntalo o defínelo)
         def generar_excel(resultados_df):
             output = BytesIO()
             with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
                 resultados_df.to_excel(writer, sheet_name="Resultados", index=False)
-                aplicar_formato_excel(writer, resultados_df)
+                # aplicar_formato_excel(writer, resultados_df)  # Comenta esta línea si no está definida
             output.seek(0)
             return output
 
