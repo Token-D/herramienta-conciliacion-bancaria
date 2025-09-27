@@ -760,7 +760,7 @@ if extracto_file and auxiliar_file:
 
         # Depurar resultados
         if resultados_df['fecha'].isna().any():
-            st.write("Filas con NaT en 'fecha':")
+            st.write("Filas con NaT en 'fecha' del extracto:")
             st.write(resultados_df[resultados_df['fecha'].isna()])
 
         # Mostrar resultados
