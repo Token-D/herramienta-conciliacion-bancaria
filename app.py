@@ -648,7 +648,7 @@ def conciliar_banco_completo(extracto_df, auxiliar_df):
     extracto_df["conciliado"] = extracto_df.index.isin(extracto_conciliado_idx)
     auxiliar_df["conciliado"] = auxiliar_df.index.isin(auxiliar_conciliado_idx)
 
-    return resultados_directa, extracto_df, auxiliar_df
+    return resultados_directa
 
 
 # ===============================
