@@ -836,7 +836,7 @@ def realizar_conciliacion(extracto_file, auxiliar_file, mes_conciliacion, invert
     # Definir columnas esperadas
     columnas_esperadas_extracto = {
         "fecha": ["fecha de operación", "fecha", "date", "fecha_operacion", "f. operación", "fecha de sistema"],
-        "monto": ["importe (cop)","valor", "monto", "amount", "importe", "valor total"],
+        "monto": ["importe (cop)", "monto", "amount", "importe", "valor total"],
         "concepto": ["concepto", "descripción", "concepto banco", "descripcion", "transacción", "transaccion", "descripción motivo"],
         "numero_movimiento": ["número de movimiento", "numero de movimiento", "movimiento", "no. movimiento", "num", "nro. documento", "documento"],
         "debitos": ["debitos", "débitos", "debe", "cargo", "cargos", "valor débito"],
