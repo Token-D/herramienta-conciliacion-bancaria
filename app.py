@@ -315,10 +315,6 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
             st.write("Ejemplos de fechas inválidas:")
             st.write(df[df['fecha'].isna()][['fecha_original', 'fecha_str']].head())
 
-        # Depuración: Mostrar fechas parseadas
-        st.write(f"Fechas parseadas en {nombre_archivo} (primeras 10):")
-        st.write(df[['fecha_original', 'fecha_str', 'fecha']].head(10))
-
         # Filtrar por mes solo para extracto si se especifica
         if mes_conciliacion and es_extracto:
             filas_antes = len(df)
