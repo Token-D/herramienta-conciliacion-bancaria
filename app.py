@@ -835,7 +835,7 @@ if 'invertir_signos' not in st.session_state:
 def realizar_conciliacion(extracto_file, auxiliar_file, mes_conciliacion, invertir_signos):
     # Definir columnas esperadas
     columnas_esperadas_extracto = {
-        "fecha": ["fecha de operación", "fecha", "date", "fecha_operacion", "f. operación", "fecha de sistema","fecha "],
+        "fecha": ["fecha de operación", "fecha", "date", "fecha_operacion", "f. operación", "fecha de sistema"],
         "monto": ["importe (cop)", "monto", "amount", "importe", "valor total","valor"],
         "concepto": ["concepto", "descripción", "concepto banco", "descripcion", "transacción", "transaccion", "descripción motivo"],
         "numero_movimiento": ["número de movimiento", "numero de movimiento", "movimiento", "no. movimiento", "num", "nro. documento", "documento"],
