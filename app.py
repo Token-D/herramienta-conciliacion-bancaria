@@ -746,46 +746,32 @@ def conciliacion_agrupacion_extracto(extracto_df, auxiliar_df, extracto_concilia
     
     return pd.DataFrame(resultados), nuevos_extracto_conciliado, nuevos_auxiliar_conciliado
 
-# -----------------------
-# Función principal de conciliación
-# -----------------------
-def conciliar_banco_completo(extracto_df, auxiliar_df):
-    resultados_directa, extracto_conciliado_idx, auxiliar_conciliado_idx = conciliacion_directa(
-        extracto_df, auxiliar_df
-    )
-    
-    resultados_agrup_aux, nuevos_extracto_conc1, nuevos_auxiliar_conc1 = conciliacion_agrupacion_auxiliar(
-        extracto_df, auxiliar_df, extracto_conciliado_idx, auxiliar_conciliado_idx
-    )
-    
-    extracto_conciliado_idx.update(nuevos_extracto_conc1)
-    auxiliar_conciliado_idx.update(nuevos_auxiliar_conc1)
-    
-    resultados_agrup_ext, nuevos_extracto_conc2, nuevos_auxiliar_conc2 = conciliacion_agrupacion_extracto(
-        extracto_df, auxiliar_df, extracto_conciliado_idx, auxiliar_conciliado_idx
-    )
-    
-    if not resultados_directa.empty:
-        indices_a_eliminar = []
-        for idx, fila in resultados_directa.iterrows():
-            if fila['estado'] == 'No Conciliado':
-                if (fila['tipo_registro'] == 'extracto' and fila['index_original'] in nuevos_extracto_conc1.union(nuevos_extracto_conc2)) or \
-                   (fila['tipo_registro'] == 'auxiliar' and fila['index_original'] in nuevos_auxiliar_conc1.union(nuevos_auxiliar_conc2)):
-                    indices_a_eliminar.append(idx)
-        
-        if indices_a_eliminar:
-            resultados_directa = resultados_directa.drop(indices_a_eliminar)
-    
-    resultados_finales = pd.concat([
-        resultados_directa,
-        resultados_agrup_aux,
-        resultados_agrup_ext
-    ], ignore_index=True)
-    
-    if 'index_original' in resultados_finales.columns:
-        resultados_finales = resultados_finales.drop(['index_original', 'tipo_registro'], axis=1)
-    
-    return resultados_finales
+# ===============================
+# Función optimizada para conciliar
+# ===============================
+def conciliar(extracto, auxiliar, tolerancia=50):
+    """
+    Conciliación eficiente usando pandas merge.
+    - extracto: DataFrame con columna VALOR
+    - auxiliar: DataFrame con columna VALOR
+    """
+    # Crear combinaciones cruzadas
+    df_merge = extracto.merge(auxiliar, how="cross", suffixes=("_ext", "_aux"))
+
+    # Calcular diferencia
+    df_merge["diferencia"] = (df_merge["VALOR_ext"] - df_merge["VALOR_aux"]).abs()
+
+    # Filtrar conciliados con tolerancia
+    conciliados = df_merge[df_merge["diferencia"] <= tolerancia].copy()
+
+    # Eliminar duplicados (cada valor se empareja solo una vez)
+    conciliados = conciliados.drop_duplicates(subset=["VALOR_ext", "VALOR_aux"])
+
+    # Obtener no conciliados
+    no_conciliados_ext = extracto.loc[~extracto["VALOR"].isin(conciliados["VALOR_ext"])]
+    no_conciliados_aux = auxiliar.loc[~auxiliar["VALOR"].isin(conciliados["VALOR_aux"])]
+
+    return conciliados[["VALOR_ext", "VALOR_aux"]], no_conciliados_ext, no_conciliados_aux
 
 # -----------------------
 # Formato Excel (para descarga)
