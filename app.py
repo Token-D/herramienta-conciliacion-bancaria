@@ -7,6 +7,13 @@ from dateutil.parser import parse as parse_date
 import re
 from collections import Counter
 
+# Configuración inicial de la página (debe estar al inicio)
+st.set_page_config(page_title="Conciliación Bancaria", layout="wide")
+
+# Inicializar estado de sesión de forma eficiente
+if 'invertir_signos' not in st.session_state:
+    st.session_state.invertir_signos = False
+
 # -----------------------------
 # Helpers: parseo/normalización
 # -----------------------------
@@ -36,7 +43,7 @@ def _parse_amount_string(s, banco_key):
     return -abs(val) if negativo and not pd.isna(val) and val > 0 else val
 
 def limpiar_formato_montos_extracto(df_in, banco_seleccionado="Auto-detect"):
-    """Normaliza las columnas de monto en el DataFrame del extracto."""
+    """Normaliza las columnas de monto en el DataFrame."""
     df = df_in.copy()
     df.columns = [str(c).lower().strip() for c in df.columns]
     columnas = [col for col in ['monto', 'debitos', 'creditos'] if col in df.columns]
@@ -44,16 +51,14 @@ def limpiar_formato_montos_extracto(df_in, banco_seleccionado="Auto-detect"):
     if not columnas:
         return df
 
-    # Determinar formato de monto
     banco_key = banco_seleccionado
     if banco_seleccionado == "Auto-detect":
         combined = pd.Series(dtype="object")
         for col in columnas:
-            combined = pd.concat([combined, df[col].dropna().astype(str).head(50)], ignore_index=True)
+            combined = pd.concat([combined, df[col].dropna().astype(str).head(20)], ignore_index=True)
         fmt = detectar_formato_montos(combined)
         banco_key = "Bancolombia" if fmt == 'dot_decimal' else "Banco de Bogotá"
 
-    # Vectorizar la conversión de montos
     for col in columnas:
         try:
             df[col] = pd.to_numeric(
@@ -71,7 +76,7 @@ def limpiar_formato_montos_extracto(df_in, banco_seleccionado="Auto-detect"):
 
 def detectar_formato_montos(series):
     """Detecta si el formato usa coma o punto decimal."""
-    muestra = series.dropna().astype(str).str.strip().head(30)
+    muestra = series.dropna().astype(str).str.strip().head(20)
     if muestra.empty:
         return "unknown"
     
@@ -92,7 +97,7 @@ def detectar_formato_montos(series):
 # -----------------------------
 # Funciones de lectura y normalización
 # -----------------------------
-def buscar_fila_encabezados(df, columnas_esperadas, max_filas=30):
+def buscar_fila_encabezados(df, columnas_esperadas, max_filas=20):
     """Busca la fila que contiene al menos 'fecha' y una columna de monto."""
     columnas_esperadas_lower = {col: [v.lower() for v in variantes] for col, variantes in columnas_esperadas.items()}
     
@@ -110,7 +115,7 @@ def buscar_fila_encabezados(df, columnas_esperadas, max_filas=30):
             return idx
     return None
 
-def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, max_filas=30):
+def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, max_filas=20):
     """Lee el archivo Excel y normaliza los datos."""
     extension = archivo.name.split('.')[-1].lower()
     
@@ -216,7 +221,6 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
         st.warning(f"No se encontró la columna 'fecha' en {nombre_archivo}.")
         return df
     
-    df['fecha_original'] = df['fecha'].copy()
     df['fecha_str'] = df['fecha'].astype(str).str.strip()
     
     año_base = pd.Timestamp.now().year
@@ -265,14 +269,6 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
                 return pd.NaT
     
     df['fecha'] = df['fecha_str'].apply(lambda x: parsear_fecha(x, mes_conciliacion, año_base, es_extracto, formato_fecha))
-    
-    fechas_invalidas = df['fecha'].isna().sum()
-    if fechas_invalidas > 0:
-        st.warning(f"Se encontraron {fechas_invalidas} fechas inválidas en {nombre_archivo}.")
-        st.write(df[df['fecha'].isna()][['fecha_original', 'fecha_str']].head())
-    
-    st.write(f"Fechas parseadas en {nombre_archivo} (primeras 10):")
-    st.write(df[['fecha_original', 'fecha_str', 'fecha']].head(10))
     
     if mes_conciliacion and es_extracto:
         filas_antes = len(df)
@@ -626,36 +622,95 @@ def aplicar_formato_excel(writer, resultados_df):
 # -----------------------------
 # Interfaz Streamlit
 # -----------------------------
-st.set_page_config(page_title="Conciliación Bancaria", layout="wide")
-st.title("📊 Herramienta de Conciliación Bancaria")
-
-st.subheader("Configuración")
-meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
-mes_seleccionado = st.selectbox("Mes a conciliar (opcional):", ["Todos"] + meses)
-mes_conciliacion = meses.index(mes_seleccionado) + 1 if mes_seleccionado != "Todos" else None
-
-banco_seleccionado = st.selectbox(
-    "Seleccione el banco del extracto:",
-    ["Auto-detect", "Bancolombia", "Banco de Bogotá", "BBVA"],
-    index=0
-)
-
-extracto_file = st.file_uploader("Subir Extracto Bancario (Excel)")
-if extracto_file:
-    extension = extracto_file.name.split('.')[-1].lower()
-    if extension not in ['xls', 'xlsx']:
-        st.error(f"Formato no soportado para Extracto: {extension}. Usa .xls o .xlsx.")
-        extracto_file = None
-
-auxiliar_file = st.file_uploader("Subir Libro Auxiliar (Excel)")
-if auxiliar_file:
-    extension = auxiliar_file.name.split('.')[-1].lower()
-    if extension not in ['xls', 'xlsx']:
-        st.error(f"Formato no soportado para Auxiliar: {extension}. Usa .xls o .xlsx.")
-        auxiliar_file = None
-
-if 'invertir_signos' not in st.session_state:
-    st.session_state.invertir_signos = False
+def main():
+    st.title("📊 Herramienta de Conciliación Bancaria")
+    st.subheader("Configuración")
+    
+    meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
+    mes_seleccionado = st.selectbox("Mes a conciliar (opcional):", ["Todos"] + meses)
+    mes_conciliacion = meses.index(mes_seleccionado) + 1 if mes_seleccionado != "Todos" else None
+    
+    banco_seleccionado = st.selectbox(
+        "Seleccione el banco del extracto:",
+        ["Auto-detect", "Bancolombia", "Banco de Bogotá", "BBVA"],
+        index=0
+    )
+    
+    extracto_file = st.file_uploader("Subir Extracto Bancario (Excel)", key="extracto")
+    if extracto_file:
+        extension = extracto_file.name.split('.')[-1].lower()
+        if extension not in ['xls', 'xlsx']:
+            st.error(f"Formato no soportado para Extracto: {extension}. Usa .xls o .xlsx.")
+            extracto_file = None
+    
+    auxiliar_file = st.file_uploader("Subir Libro Auxiliar (Excel)", key="auxiliar")
+    if auxiliar_file:
+        extension = auxiliar_file.name.split('.')[-1].lower()
+        if extension not in ['xls', 'xlsx']:
+            st.error(f"Formato no soportado para Auxiliar: {extension}. Usa .xls o .xlsx.")
+            auxiliar_file = None
+    
+    if extracto_file and auxiliar_file:
+        try:
+            resultados_df, extracto_df, auxiliar_df = realizar_conciliacion(
+                extracto_file, auxiliar_file, mes_conciliacion, st.session_state.invertir_signos, banco_seleccionado
+            )
+            
+            if resultados_df['fecha'].isna().any():
+                st.write("Filas con NaT en 'fecha':")
+                st.write(resultados_df[resultados_df['fecha'].isna()])
+            
+            st.subheader("Resultados de la Conciliación")
+            conciliados = resultados_df[resultados_df['estado'] == 'Conciliado']
+            no_conciliados = resultados_df[resultados_df['estado'] == 'No Conciliado']
+            num_conciliados = len(conciliados) // 2 if len(conciliados) % 2 == 0 else len(conciliados)
+            porcentaje_conciliados = (num_conciliados / len(resultados_df)) * 100 if len(resultados_df) > 0 else 0
+            
+            st.write(f"Total de movimientos: {len(resultados_df)}")
+            st.write(f"Movimientos conciliados: {num_conciliados} ({porcentaje_conciliados:.1f}%)")
+            st.write(f"Movimientos no conciliados: {len(no_conciliados)} ({len(no_conciliados)/len(resultados_df)*100:.1f}%)")
+            
+            st.write("Distribución por tipo de conciliación:")
+            distribucion = resultados_df.groupby(['tipo_conciliacion', 'origen']).size().reset_index(name='subtotal')
+            distribucion_pivot = distribucion.pivot_table(
+                index='tipo_conciliacion', columns='origen', values='subtotal', fill_value=0
+            ).reset_index()
+            distribucion_pivot.columns = ['Tipo de Conciliación', 'Extracto Bancario', 'Libro Auxiliar']
+            distribucion_pivot['Cantidad Total'] = distribucion_pivot['Extracto Bancario'] + distribucion_pivot['Libro Auxiliar']
+            distribucion_pivot.loc[distribucion_pivot['Tipo de Conciliación'] == 'Directa', 'Cantidad Total'] = distribucion_pivot.loc[distribucion_pivot['Tipo de Conciliación'] == 'Directa', ['Extracto Bancario', 'Libro Auxiliar']].max(axis=1)
+            distribucion_pivot = distribucion_pivot[['Tipo de Conciliación', 'Extracto Bancario', 'Libro Auxiliar', 'Cantidad Total']]
+            st.write(distribucion_pivot)
+            
+            st.write("Detalle de todos los movimientos:")
+            st.write(resultados_df)
+            
+            def generar_excel(resultados_df):
+                output = BytesIO()
+                with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+                    resultados_df.to_excel(writer, sheet_name="Resultados", index=False)
+                    aplicar_formato_excel(writer, resultados_df)
+                output.seek(0)
+                return output
+            
+            excel_data = generar_excel(resultados_df)
+            st.download_button(
+                label="Descargar Resultados en Excel",
+                data=excel_data,
+                file_name="resultados_conciliacion.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+            
+            if porcentaje_conciliados < 20:
+                st.warning("El porcentaje de movimientos conciliados es bajo. ¿Los signos de débitos/créditos están invertidos en el extracto?")
+                if st.button("Invertir valores débitos y créditos en Extracto Bancario"):
+                    st.session_state.invertir_signos = not st.session_state.invertir_signos
+                    st.rerun()
+        
+        except Exception as e:
+            st.error(f"Error al procesar los archivos: {e}")
+            st.exception(e)
+    else:
+        st.info("Por favor, sube ambos archivos para comenzar la conciliación.")
 
 def realizar_conciliacion(extracto_file, auxiliar_file, mes_conciliacion, invertir_signos, banco_seleccionado):
     columnas_esperadas_extracto = {
@@ -699,64 +754,5 @@ def realizar_conciliacion(extracto_file, auxiliar_file, mes_conciliacion, invert
     resultados_df = conciliar_banco_completo(extracto_df, auxiliar_df)
     return resultados_df, extracto_df, auxiliar_df
 
-if extracto_file and auxiliar_file:
-    try:
-        resultados_df, extracto_df, auxiliar_df = realizar_conciliacion(
-            extracto_file, auxiliar_file, mes_conciliacion, st.session_state.invertir_signos, banco_seleccionado
-        )
-        
-        if resultados_df['fecha'].isna().any():
-            st.write("Filas con NaT en 'fecha':")
-            st.write(resultados_df[resultados_df['fecha'].isna()])
-        
-        st.subheader("Resultados de la Conciliación")
-        conciliados = resultados_df[resultados_df['estado'] == 'Conciliado']
-        no_conciliados = resultados_df[resultados_df['estado'] == 'No Conciliado']
-        num_conciliados = len(conciliados) // 2 if len(conciliados) % 2 == 0 else len(conciliados)
-        porcentaje_conciliados = (num_conciliados / len(resultados_df)) * 100 if len(resultados_df) > 0 else 0
-        
-        st.write(f"Total de movimientos: {len(resultados_df)}")
-        st.write(f"Movimientos conciliados: {num_conciliados} ({porcentaje_conciliados:.1f}%)")
-        st.write(f"Movimientos no conciliados: {len(no_conciliados)} ({len(no_conciliados)/len(resultados_df)*100:.1f}%)")
-        
-        st.write("Distribución por tipo de conciliación:")
-        distribucion = resultados_df.groupby(['tipo_conciliacion', 'origen']).size().reset_index(name='subtotal')
-        distribucion_pivot = distribucion.pivot_table(
-            index='tipo_conciliacion', columns='origen', values='subtotal', fill_value=0
-        ).reset_index()
-        distribucion_pivot.columns = ['Tipo de Conciliación', 'Extracto Bancario', 'Libro Auxiliar']
-        distribucion_pivot['Cantidad Total'] = distribucion_pivot['Extracto Bancario'] + distribucion_pivot['Libro Auxiliar']
-        distribucion_pivot.loc[distribucion_pivot['Tipo de Conciliación'] == 'Directa', 'Cantidad Total'] = distribucion_pivot.loc[distribucion_pivot['Tipo de Conciliación'] == 'Directa', ['Extracto Bancario', 'Libro Auxiliar']].max(axis=1)
-        distribucion_pivot = distribucion_pivot[['Tipo de Conciliación', 'Extracto Bancario', 'Libro Auxiliar', 'Cantidad Total']]
-        st.write(distribucion_pivot)
-        
-        st.write("Detalle de todos los movimientos:")
-        st.write(resultados_df)
-        
-        def generar_excel(resultados_df):
-            output = BytesIO()
-            with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-                resultados_df.to_excel(writer, sheet_name="Resultados", index=False)
-                aplicar_formato_excel(writer, resultados_df)
-            output.seek(0)
-            return output
-        
-        excel_data = generar_excel(resultados_df)
-        st.download_button(
-            label="Descargar Resultados en Excel",
-            data=excel_data,
-            file_name="resultados_conciliacion.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
-        
-        if porcentaje_conciliados < 20:
-            st.warning("El porcentaje de movimientos conciliados es bajo. ¿Los signos de débitos/créditos están invertidos en el extracto?")
-            if st.button("Invertir valores débitos y créditos en Extracto Bancario"):
-                st.session_state.invertir_signos = not st.session_state.invertir_signos
-                st.rerun()
-    
-    except Exception as e:
-        st.error(f"Error al procesar los archivos: {e}")
-        st.exception(e)
-else:
-    st.info("Por favor, sube ambos archivos para comenzar la conciliación.")
+if __name__ == "__main__":
+    main()
