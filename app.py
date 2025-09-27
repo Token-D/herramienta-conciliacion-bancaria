@@ -6,94 +6,6 @@ from dateutil.parser import parse as parse_date
 import re
 from collections import Counter
 
-def limpiar_bancolombia(serie):
-    """Ej: 2,119,101.00 -> 2119101.00"""
-    return (
-        serie.astype(str)
-        .str.replace(" ", "", regex=False)
-        .str.replace("$", "", regex=False)
-        .str.replace(",", "", regex=False)   # quitar separador de miles
-        # punto decimal ya está como '.', no tocar
-    )
-
-def limpiar_bogota_bbva(serie):
-    """Ej: $14.339.827,00  ó  -2.699.434,00 -> 14339827.00 / -2699434.00"""
-    return (
-        serie.astype(str)
-        .str.replace(" ", "", regex=False)
-        .str.replace("$", "", regex=False)
-        .str.replace(".", "", regex=False)   # quitar separador de miles
-        .str.replace(",", ".", regex=False)  # convertir coma decimal a punto
-    )
-
-def limpiar_generico(serie):
-    """
-    Intento genérico: elimina espacios y símbolos comunes y luego intenta convertir.
-    Útil para bancos nuevos hasta que definas una regla específica.
-    """
-    return (
-        serie.astype(str)
-        .str.replace(" ", "", regex=False)
-        .str.replace("$", "", regex=False)
-        .str.replace(",", "", regex=False)   # por defecto quita comas (puede ser inseguro)
-    )
-
-# Diccionario de reglas por banco (agrega nuevas funciones aquí)
-REGLAS_BANCOS = {
-    "Bancolombia": limpiar_bancolombia,
-    "Banco de Bogotá": limpiar_bogota_bbva,
-    "BBVA": limpiar_bogota_bbva,
-    # "Davivienda": limpiar_davivienda,  # ejemplo para agregar más
-}
-
-# -----------------------
-# Autodetección heurística del formato de montos (muestra)
-# -----------------------
-def detectar_banco_por_muestra(serie):
-    """
-    Toma una muestra y devuelve el nombre del banco más probable según patrones:
-      - Si el último separador es '.' -> decimal con punto (Bancolombia).
-      - Si el último separador es ',' -> decimal con coma (Bogota/BBVA).
-      - Si aparece '$' incrementa probabilidad de 'Banco de Bogotá' (suele traer $).
-    Devuelve None si no hay consenso.
-    """
-    muestra = serie.dropna().astype(str).head(50).tolist()
-    if not muestra:
-        return None
-
-    score_bancolombia = 0
-    score_bogota = 0
-
-    for s in muestra:
-        s = s.strip()
-        if not s:
-            continue
-        if "$" in s:
-            score_bogota += 1
-        last_dot = s.rfind(".")
-        last_comma = s.rfind(",")
-        if last_dot == -1 and last_comma == -1:
-            continue
-        if last_dot > last_comma:
-            # ejemplo: '2,119,101.00' -> dot está al final -> punto decimal
-            score_bancolombia += 1
-        elif last_comma > last_dot:
-            # ejemplo: '14.339.827,00' -> comma al final -> coma decimal
-            score_bogota += 1
-        else:
-            # empate o un solo separador: intentar deducir por conteo
-            if s.count(",") >= 2 and "." in s:
-                score_bancolombia += 1
-            elif s.count(".") >= 2 and "," in s:
-                score_bogota += 1
-
-    if score_bancolombia > score_bogota:
-        return "Bancolombia"
-    if score_bogota > score_bancolombia:
-        # devolvemos "Banco de Bogotá" como representante para formatos con coma decimal
-        return "Banco de Bogotá"
-    return None
-
 # Función para buscar la fila de encabezados
 def buscar_fila_encabezados(df, columnas_esperadas, max_filas=30):
     """
@@ -429,104 +341,59 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
     return df
 
 # Función para procesar los montos
-def procesar_montos(df, nombre_archivo, es_extracto=False, invertir_signos=False, banco=None):
+def procesar_montos(df, nombre_archivo, es_extracto=False, invertir_signos=False):
     """
-    Versión robusta y modular que:
-      - Detecta columnas débito/credito o 'monto'
-      - Limpia numéricos según el banco (si se indica)
-      - Convierte a numeric (float64)
-      - Mantiene la lógica de signos para extracto/auxiliar
+    Procesa columnas de débitos y créditos para crear una columna 'monto' unificada.
+    Para extractos: débitos son negativos, créditos positivos.
+    Para auxiliar: débitos son positivos, créditos negativos.
     """
     columnas = df.columns.str.lower()
 
-    # Si ya existe 'monto' numérico válido, devolver tal cual
-    if "monto" in columnas:
-        try:
-            # intentamos asegurar que sea numérico
-            df["monto"] = pd.to_numeric(df["monto"], errors="coerce")
-            if df["monto"].notna().any():
-                return df
-        except Exception:
-            pass
+    # Verificar si ya existe una columna 'monto' válida
+    if "monto" in columnas and df["monto"].notna().any() and (df["monto"] != 0).any():
+        return df
 
-    # términos para detectar columnas de debitos/creditos
-    terminos_debitos = ["deb", "debe", "cargo", "débito", "valor débito", "debito"]
-    terminos_creditos = ["cred", "haber", "abono", "crédito", "valor crédito", "credito"]
-
+    # Definir términos para identificar débitos y créditos
+    terminos_debitos = ["deb", "debe", "cargo", "débito", "valor débito"]
+    terminos_creditos = ["cred", "haber", "abono", "crédito", "valor crédito"]
     cols_debito = [col for col in df.columns if any(term in col.lower() for term in terminos_debitos)]
     cols_credito = [col for col in df.columns if any(term in col.lower() for term in terminos_creditos)]
 
+    # Si no hay columnas de monto, débitos ni créditos, advertir
     if not cols_debito and not cols_credito and "monto" not in columnas:
         st.warning(f"No se encontraron columnas de monto, débitos o créditos en {nombre_archivo}.")
         return df
 
-    # determinar función de limpieza:
-    limpiar_func = None
-    if banco and banco in REGLAS_BANCOS:
-        limpiar_func = REGLAS_BANCOS[banco]
-    else:
-        # intentar autodetect basándose en la primera columna encontrada con datos
-        muestra_col = None
-        if cols_debito:
-            muestra_col = df[cols_debito[0]]
-        elif cols_credito:
-            muestra_col = df[cols_credito[0]]
-        elif "monto" in df.columns:
-            muestra_col = df["monto"]
-        if muestra_col is not None:
-            detected = detectar_banco_por_muestra(muestra_col)
-            if detected and detected in REGLAS_BANCOS:
-                limpiar_func = REGLAS_BANCOS[detected]
-
-    if limpiar_func is None:
-        limpiar_func = limpiar_generico  # fallback
-
     # Inicializar columna 'monto'
     df["monto"] = 0.0
 
-    # Definir signos según tipo de archivo y si se invierten
+    # Definir signos según el tipo de archivo y si se invierten
     if es_extracto:
         signo_debito = 1 if invertir_signos else -1
         signo_credito = -1 if invertir_signos else 1
     else:
-        signo_debito = 1
+        signo_debito = 1  # Auxiliar no invierte signos
         signo_credito = -1
 
     # Procesar débitos
     for col in cols_debito:
         try:
-            serie = df[col]
-            # limpiar textualmente según la regla detectada/seleccionada
-            serie_limpia = limpiar_func(serie.astype(str))
-            serie_num = pd.to_numeric(serie_limpia, errors="coerce").fillna(0)
-            df[col] = serie_num
-            df["monto"] += serie_num * signo_debito
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+            df["monto"] += df[col] * signo_debito
         except Exception as e:
             st.warning(f"Error al procesar columna de débito '{col}' en {nombre_archivo}: {e}")
 
     # Procesar créditos
     for col in cols_credito:
         try:
-            serie = df[col]
-            serie_limpia = limpiar_func(serie.astype(str))
-            serie_num = pd.to_numeric(serie_limpia, errors="coerce").fillna(0)
-            df[col] = serie_num
-            df["monto"] += serie_num * signo_credito
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+            df["monto"] += df[col] * signo_credito
         except Exception as e:
             st.warning(f"Error al procesar columna de crédito '{col}' en {nombre_archivo}: {e}")
 
-    # Si aún no hay columnas de debitos/creditos pero hay columna 'monto' textual
-    if ("monto" in df.columns) and not cols_debito and not cols_credito:
-        try:
-            serie = df["monto"]
-            serie_limpia = limpiar_func(serie.astype(str))
-            df["monto"] = pd.to_numeric(serie_limpia, errors="coerce")
-        except Exception as e:
-            st.warning(f"Error al convertir columna 'monto' en {nombre_archivo}: {e}")
-
     # Verificar resultado
-    if df["monto"].eq(0).all():
-        st.warning(f"La columna 'monto' resultó en ceros o no se detectaron valores numéricos en {nombre_archivo}.")
+    if df["monto"].eq(0).all() and (cols_debito or cols_credito):
+        st.warning(f"La columna 'monto' resultó en ceros en {nombre_archivo}. Verifica las columnas de débitos/créditos.")
 
     return df
 
@@ -947,32 +814,28 @@ tipos_aceptados = [
     "application/octet-stream"  # Por si el navegador lo detecta genéricamente
 ]
 # Aceptar cualquier tipo y validar manualmente
-extracto_file = st.file_uploader("Subir Extracto Bancario (Excel)")
+extracto_file = st.file_uploader("Subir Extracto Bancario (Excel)")  # Sin type=
 if extracto_file:
-    extracto_banco = st.selectbox(
-        "Banco del Extracto (selecciona o deja 'Auto-detect'):",
-        ["Auto-detect", "Bancolombia", "Banco de Bogotá", "BBVA"]
-    )
-else:
-    extracto_banco = None
+    extension = extracto_file.name.split('.')[-1].lower()
+    if extension not in ['xls', 'xlsx']:
+        st.error(f"Formato no soportado para Extracto: {extension}. Usa .xls o .xlsx.")
+        extracto_file = None
 
-auxiliar_file = st.file_uploader("Subir Libro Auxiliar (Excel)")
+auxiliar_file = st.file_uploader("Subir Libro Auxiliar (Excel)")  # Sin type=
 if auxiliar_file:
-    auxiliar_banco = st.selectbox(
-        "Banco del Libro Auxiliar (selecciona o deja 'Auto-detect'):",
-        ["Auto-detect", "Bancolombia", "Banco de Bogotá", "BBVA"]
-    )
-else:
-    auxiliar_banco = None
+    extension = auxiliar_file.name.split('.')[-1].lower()
+    if extension not in ['xls', 'xlsx']:
+        st.error(f"Formato no soportado para Auxiliar: {extension}. Usa .xls o .xlsx.")
+        auxiliar_file = None
 
 # Inicializar estado de sesión
 if 'invertir_signos' not in st.session_state:
     st.session_state.invertir_signos = False
 
-def realizar_conciliacion(extracto_file, auxiliar_file, mes_conciliacion, invertir_signos, banco_extracto=None, banco_auxiliar=None):
+def realizar_conciliacion(extracto_file, auxiliar_file, mes_conciliacion, invertir_signos):
     # Definir columnas esperadas
     columnas_esperadas_extracto = {
-        "fecha": ["fecha de operación", "fecha","date", "fecha_operacion", "f. operación", "fecha de sistema"],
+        "fecha": ["fecha de operación", "fecha", "date", "fecha_operacion", "f. operación", "fecha de sistema"],
         "monto": ["importe (cop)","valor", "monto", "amount", "importe", "valor total"],
         "concepto": ["concepto", "descripción", "concepto banco", "descripcion", "transacción", "transaccion", "descripción motivo"],
         "numero_movimiento": ["número de movimiento", "numero de movimiento", "movimiento", "no. movimiento", "num", "nro. documento", "documento"],
@@ -993,27 +856,9 @@ def realizar_conciliacion(extracto_file, auxiliar_file, mes_conciliacion, invert
     extracto_df = leer_datos_desde_encabezados(extracto_file, columnas_esperadas_extracto, "Extracto Bancario")
     auxiliar_df = leer_datos_desde_encabezados(auxiliar_file, columnas_esperadas_auxiliar, "Libro Auxiliar")
 
-    # Procesar montos (pasa el nombre del banco, si el usuario seleccionó 'Auto-detect' enviamos None)
-    banco_ext = None if banco_extracto in [None, "Auto-detect"] else banco_extracto
-    banco_aux = None if banco_auxiliar in [None, "Auto-detect"] else banco_auxiliar
-
-    st.subheader("Ejemplos de conversión de montos")
-st.write("Extracto (original -> convertido):")
-# muestra 10 filas de la columna detectada (si existe)
-if "_monto_original" in extracto_df.columns:
-    st.write(extracto_df[["_monto_original", "monto"]].head(10))
-else:
-    st.write(extracto_df[["monto"]].head(10))
-
-st.write("Libro Auxiliar (original -> convertido):")
-if "_monto_original" in auxiliar_df.columns:
-    st.write(auxiliar_df[["_monto_original", "monto"]].head(10))
-else:
-    st.write(auxiliar_df[["monto"]].head(10))
-
-
-    auxiliar_df = procesar_montos(auxiliar_df, "Libro Auxiliar", es_extracto=False, banco=banco_aux)
-    extracto_df = procesar_montos(extracto_df, "Extracto Bancario", es_extracto=True, invertir_signos=invertir_signos, banco=banco_ext)
+    # Procesar montos
+    auxiliar_df = procesar_montos(auxiliar_df, "Libro Auxiliar", es_extracto=False)
+    extracto_df = procesar_montos(extracto_df, "Extracto Bancario", es_extracto=True, invertir_signos=invertir_signos)
 
     # Estandarizar fechas
     auxiliar_df = estandarizar_fechas(auxiliar_df, "Libro Auxiliar", mes_conciliacion=None)
@@ -1038,8 +883,7 @@ if extracto_file and auxiliar_file:
     try:
         # Realizar conciliación inicial
         resultados_df, extracto_df, auxiliar_df = realizar_conciliacion(
-            extracto_file, auxiliar_file, mes_conciliacion, st.session_state.invertir_signos,
-            banco_extracto=extracto_banco, banco_auxiliar=auxiliar_banco
+            extracto_file, auxiliar_file, mes_conciliacion, st.session_state.invertir_signos
         )
 
         # Depurar resultados
