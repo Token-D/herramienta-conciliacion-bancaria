@@ -865,6 +865,14 @@ def aplicar_formato_excel(writer, resultados_df):
 # Interfaz de Streamlit
 st.title("Herramienta de Conciliación Bancaria Automática")
 
+# 1. Selector de Banco (Nuevo)
+BANCOS = ["Generico", "BBVA", "Bogotá", "Davivienda", "Bancolombia"]
+banco_seleccionado = st.selectbox(
+    "Selecciona el Banco:",
+    BANCOS,
+    key="banco_seleccionado"
+)
+
 st.subheader("Configuración")
 meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
 mes_seleccionado = st.selectbox("Mes a conciliar (opcional):", ["Todos"] + meses)
@@ -971,7 +979,8 @@ if extracto_file and auxiliar_file:
     try:
         # Realizar conciliación inicial
         resultados_df, extracto_df, auxiliar_df = realizar_conciliacion(
-            extracto_file, auxiliar_file, mes_conciliacion, st.session_state.invertir_signos
+            extracto_file, auxiliar_file, mes_conciliacion, st.session_state.invertir_signos,
+            banco_seleccionado=banco_seleccionado
         )
 
         # Depurar resultados
