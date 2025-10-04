@@ -155,6 +155,16 @@ def normalizar_dataframe(df, columnas_esperadas):
     # Eliminar columnas duplicadas después de renombrar
     df = df.loc[:, ~df.columns.duplicated(keep='first')]
     
+    # Si no se encontró 'numero_movimiento', crearlo vacío para evitar KeyErrors posteriores
+    if 'numero_movimiento' not in df.columns:
+        # Crea la columna con una cadena vacía o un valor único, dependiendo de lo que esperes
+        # Usaremos el índice para garantizar un identificador único en caso de ser necesario.
+        df['numero_movimiento'] = 'DOC_' + df.index.astype(str)
+        # Opcionalmente, podrías usar una columna de conceptos si es más útil:
+        # df['numero_movimiento'] = df.get('concepto', '').fillna('').astype(str).str.slice(0, 50) 
+            
+    return df # Esta línea ya existe en tu código
+    
     return df
 
 def detectar_formato_fechas(fechas_str, porcentaje_analisis=0.6):
@@ -316,8 +326,8 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
             st.write(df[df['fecha'].isna()][['fecha_original', 'fecha_str']].head())
 
         # Depuración: Mostrar fechas parseadas
-        st.write(f"Fechas parseadas en {nombre_archivo} (primeras 10):")
-        st.write(df[['fecha_original', 'fecha_str', 'fecha']].head(10))
+        st.write(f"Fechas parseadas en {nombre_archivo} (primeras 4):")
+        st.write(df[['fecha_original', 'fecha_str', 'fecha']].head(4))
 
         # Filtrar por mes solo para extracto si se especifica
         if mes_conciliacion and es_extracto:
