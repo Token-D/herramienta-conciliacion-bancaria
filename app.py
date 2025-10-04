@@ -864,6 +864,29 @@ def realizar_conciliacion(extracto_file, auxiliar_file, mes_conciliacion, invert
     auxiliar_df = estandarizar_fechas(auxiliar_df, "Libro Auxiliar", mes_conciliacion=None)
     extracto_df = estandarizar_fechas(extracto_df, "Extracto Bancario", mes_conciliacion=None, completar_anio=True, auxiliar_df=auxiliar_df)
 
+    st.subheader("🕵️ Análisis de Datos Procesados del Extracto Bancario")
+    st.info("Primeros 5 registros del Extracto Bancario después del procesamiento de encabezados, fechas y montos.")
+    
+    # Seleccionar las columnas clave y las originales de débito/crédito (si existen)
+    columnas_clave = ['fecha', 'monto', 'concepto', 'numero_movimiento']
+    columnas_opcionales = ['debitos', 'creditos']
+    
+    columnas_a_mostrar = [col for col in columnas_clave if col in extracto_df.columns]
+    columnas_a_mostrar += [col for col in columnas_opcionales if col in extracto_df.columns and col not in columnas_a_mostrar]
+    
+    # Mostrar el DataFrame, incluyendo el tipo de datos (dtype)
+    st.dataframe(
+        extracto_df[columnas_a_mostrar].head(5),
+        use_container_width=True
+    )
+    st.write(f"Tipos de datos (Dtypes) del Extracto Bancario: \n{extracto_df[columnas_a_mostrar].dtypes}")
+
+    # Verificar si la columna 'monto' tiene valores diferentes de cero
+    monto_cero = (extracto_df['monto'].abs() < 0.01).all() if 'monto' in extracto_df.columns else True
+    
+    if monto_cero:
+        st.warning("⚠️ **Alerta:** La columna 'monto' parece ser cero o muy cercana a cero en todos los registros después de la conversión. Esto indica un posible problema con la interpretación de las columnas de Débitos/Créditos o con la lógica de signos.")
+
     # Filtrar por mes si se seleccionó
     if mes_conciliacion:
         extracto_df = estandarizar_fechas(extracto_df, "Extracto Bancario", mes_conciliacion=mes_conciliacion)
