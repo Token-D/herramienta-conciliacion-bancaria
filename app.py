@@ -977,7 +977,9 @@ def realizar_conciliacion(extracto_file, auxiliar_file, mes_conciliacion, invert
 
     # Procesar montos
     auxiliar_df = procesar_montos(auxiliar_df, "Libro Auxiliar", es_extracto=False, banco_seleccionado="Generico")
-    extracto_df = procesar_montos(extracto_df, "Extracto Bancario", es_extracto=True, invertir_signos=invertir_signos, banco_seleccionado)
+    extracto_df = procesar_montos(
+        extracto_df, "Extracto Bancario", es_extracto=True, invertir_signos=invertir_signos,
+        banco_seleccionado=banco_seleccionado)
 
     # Estandarizar fechas
     auxiliar_df = estandarizar_fechas(auxiliar_df, "Libro Auxiliar", mes_conciliacion=None)
