@@ -340,61 +340,74 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
 
     return df
 
-# Función para procesar los montos
-def procesar_montos(df, nombre_archivo, es_extracto=False, invertir_signos=False):
+def procesar_montos(df, tipo_archivo, invertir_signos=False, tolerancia=0.01):
     """
-    Procesa columnas de débitos y créditos para crear una columna 'monto' unificada.
-    Para extractos: débitos son negativos, créditos positivos.
-    Para auxiliar: débitos son positivos, créditos negativos.
+    Unifica las columnas de débito/crédito en una sola columna 'monto' y asigna el signo correcto.
+    Incluye lógica de limpieza para formatos de moneda latinos.
     """
-    columnas = df.columns.str.lower()
+    columnas_monto = {
+        'monto': 'monto',
+        'debitos': 'debitos',
+        'creditos': 'creditos'
+    }
+    
+    col_debito = columnas_monto['debitos']
+    col_credito = columnas_monto['creditos']
 
-    # Verificar si ya existe una columna 'monto' válida
-    if "monto" in columnas and df["monto"].notna().any() and (df["monto"] != 0).any():
-        return df
-
-    # Definir términos para identificar débitos y créditos
-    terminos_debitos = ["deb", "debe", "cargo", "débito", "valor débito"]
-    terminos_creditos = ["cred", "haber", "abono", "crédito", "valor crédito"]
-    cols_debito = [col for col in df.columns if any(term in col.lower() for term in terminos_debitos)]
-    cols_credito = [col for col in df.columns if any(term in col.lower() for term in terminos_creditos)]
-
-    # Si no hay columnas de monto, débitos ni créditos, advertir
-    if not cols_debito and not cols_credito and "monto" not in columnas:
-        st.warning(f"No se encontraron columnas de monto, débitos o créditos en {nombre_archivo}.")
-        return df
-
-    # Inicializar columna 'monto'
-    df["monto"] = 0.0
-
-    # Definir signos según el tipo de archivo y si se invierten
-    if es_extracto:
-        signo_debito = 1 if invertir_signos else -1
-        signo_credito = -1 if invertir_signos else 1
-    else:
-        signo_debito = 1  # Auxiliar no invierte signos
+    # Definición de signos
+    if tipo_archivo == "Extracto Bancario":
+        signo_debito = -1 if not invertir_signos else 1
+        signo_credito = 1 if not invertir_signos else -1
+    else: # Libro Auxiliar
+        signo_debito = 1
         signo_credito = -1
 
-    # Procesar débitos
-    for col in cols_debito:
-        try:
-            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
-            df["monto"] += df[col] * signo_debito
-        except Exception as e:
-            st.warning(f"Error al procesar columna de débito '{col}' en {nombre_archivo}: {e}")
+    # NUEVA FUNCIÓN AUXILIAR PARA LIMPIAR FORMATOS DE MONEDA
+    def limpiar_monto(series):
+        """Limpia una Serie de Pandas con formato de texto (ej. '$ 447.560,74') para convertirla a float."""
+        # Convertir a string para manejar nulos y garantizar métodos .str
+        series_str = series.astype(str).str.strip()
+        
+        # 1. Eliminar cualquier cosa que no sea dígito, punto o coma (incluye $, espacios, etc.)
+        # El patrón [^\d\.\,]+ significa: "uno o más caracteres que NO sean dígito, punto o coma".
+        series_str = series_str.str.replace(r'[^\d\.\,]+', '', regex=True)
+        
+        # 2. Asumir formato latino: el punto es separador de miles (eliminarlo)
+        series_str = series_str.str.replace('.', '', regex=False)
+        
+        # 3. Reemplazar la coma decimal (,) por el punto decimal (.)
+        series_str = series_str.str.replace(',', '.', regex=False)
+        
+        # 4. Convertir a float. Los valores que no pudieron limpiarse se convierten en NaN.
+        return pd.to_numeric(series_str, errors='coerce')
+    
+    if 'monto' not in df.columns:
+        # Se buscan las columnas de débito y crédito
+        if col_debito in df.columns or col_credito in df.columns:
+            
+            df['monto_debito'] = 0.0
+            if col_debito in df.columns:
+                # Aplicar la limpieza antes de la multiplicación
+                df['monto_debito'] = limpiar_monto(df[col_debito]).fillna(0) * signo_debito
+                
+            df['monto_credito'] = 0.0
+            if col_credito in df.columns:
+                # Aplicar la limpieza antes de la multiplicación
+                df['monto_credito'] = limpiar_monto(df[col_credito]).fillna(0) * signo_credito
 
-    # Procesar créditos
-    for col in cols_credito:
-        try:
-            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
-            df["monto"] += df[col] * signo_credito
-        except Exception as e:
-            st.warning(f"Error al procesar columna de crédito '{col}' en {nombre_archivo}: {e}")
+            df['monto'] = df['monto_debito'] + df['monto_credito']
+            df.drop(columns=['monto_debito', 'monto_credito'], inplace=True, errors='ignore')
 
-    # Verificar resultado
-    if df["monto"].eq(0).all() and (cols_debito or cols_credito):
-        st.warning(f"La columna 'monto' resultó en ceros en {nombre_archivo}. Verifica las columnas de débitos/créditos.")
-
+    # Si ya existe una columna 'monto', asegurarse de que sea numérica
+    elif 'monto' in df.columns:
+        # Aplicar la limpieza también a la columna 'monto' si ya existe
+        df['monto'] = limpiar_monto(df['monto']).fillna(0)
+    
+    # Manejar el caso donde no hay ninguna columna de monto
+    else:
+        st.error(f"El archivo {tipo_archivo} no contiene ninguna columna de monto reconocida ('monto', 'debitos', 'creditos').")
+        st.stop()
+        
     return df
 
 # Función para encontrar combinaciones que sumen un monto específico
