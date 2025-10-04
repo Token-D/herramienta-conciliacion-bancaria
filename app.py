@@ -162,8 +162,28 @@ def normalizar_dataframe(df, columnas_esperadas):
         df['numero_movimiento'] = 'DOC_' + df.index.astype(str)
         # Opcionalmente, podrías usar una columna de conceptos si es más útil:
         # df['numero_movimiento'] = df.get('concepto', '').fillna('').astype(str).str.slice(0, 50) 
-            
-    return df # Esta línea ya existe en tu código
+
+    # Lógica Específica por Banco
+    if banco_seleccionado == "Davivienda":
+        # Concatenar concepto (asume que "Transacción" fue mapeado a 'transaccion_davivienda' o similar)
+        
+        # Primero, buscamos la columna original 'Transacción'
+        col_transaccion = next((col for col in df.columns if 'transacción' in col.lower()), None)
+        
+        # Asumimos que 'Descripción motivo' se mapeó a 'concepto'
+        if col_transaccion and 'concepto' in df.columns:
+            # Concatenar la Transacción a la Descripción motivo (columna 'concepto')
+            df['concepto'] = df['concepto'].astype(str) + " (" + df[col_transaccion].astype(str) + ")"
+            st.info("Davivienda: Se concatenó la columna Transacción al Concepto.")
+        
+        # Eliminar la columna 'Valor Cheque' si existe y es inútil (solo en Davivienda)
+        col_valor_cheque = next((col for col in df.columns if 'valor cheque' in col.lower()), None)
+        if col_valor_cheque:
+            df = df.drop(columns=[col_valor_cheque], errors='ignore')
+
+    if 'numero_movimiento' not in df.columns:
+        # Crea un identificador único. Si 'Documento' existía, se debe haber renombrado antes.
+        df['numero_movimiento'] = 'DOC_' + df.index.astype(str)     
     
     return df
 
@@ -351,41 +371,69 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
     return df
     
 # Función para procesar los montos
-def procesar_montos(df, nombre_archivo, es_extracto=False, invertir_signos=False):
+# Función para procesar los montos (VERSIÓN CON BANCO SELECCIONADO)
+def procesar_montos(df, nombre_archivo, es_extracto=False, invertir_signos=False, banco_seleccionado="Generico"):
     """
-    Procesa columnas de débitos y créditos para crear una columna 'monto' unificada.
-    Incluye lógica condicional de limpieza para extractos bancarios con formato de moneda.
+    Procesa columnas de débitos y créditos para crear una columna 'monto' unificada,
+    aplicando lógica específica según el banco seleccionado.
     """
-    
-    # --- Función auxiliar de limpieza robusta (solo se usa en extractos con formato especial) ---
+    import pandas as pd
+    import streamlit as st # Asegúrate de que st esté accesible
+
+    # --- Función auxiliar de limpieza robusta (latino) ---
     def limpiar_monto_latino(series):
-        """Limpia una Serie de Pandas con formato de texto (ej. '$ 447.560,74') para convertirla a float."""
-        
-        # 1. Convertir a string y limpiar espacios
         series_str = series.astype(str).str.strip()
-        
-        # 2. Eliminar cualquier cosa que no sea dígito, punto o coma (incluye $, espacios, etc.)
-        # Usamos regex para ser más generales con los símbolos de moneda y espacios.
         series_str = series_str.str.replace(r'[^\d\.\,]+', '', regex=True)
-        
-        # 3. Asumir formato latino: el punto es separador de miles (eliminarlo)
         series_str = series_str.str.replace('.', '', regex=False)
-        
-        # 4. Reemplazar la coma decimal (,) por el punto decimal (.)
         series_str = series_str.str.replace(',', '.', regex=False)
-        
-        # 5. Convertir a float.
         return pd.to_numeric(series_str, errors='coerce')
+    # ---------------------------------------------------
 
     columnas = df.columns.str.lower()
 
-    # [CÓDIGO ORIGINAL - Lógica de verificación y búsqueda de encabezados]
-    # Verificar si ya existe una columna 'monto' válida
+    # --- Lógica de Manejo de Monto Único ---
     if "monto" in columnas and df["monto"].notna().any() and (df["monto"] != 0).any():
-        # Si ya existe, nos aseguramos que se convierta a numérico por si fue leído como texto
-        df["monto"] = pd.to_numeric(df["monto"], errors='coerce').fillna(0)
+        
+        # 1. Limpieza y Conversión
+        if es_extracto and banco_seleccionado == "Davivienda":
+            # Davivienda: Aplicar limpieza robusta a MONTO ÚNICO
+            df["monto"] = limpiar_monto_latino(df["monto"]).fillna(0)
+            
+            # --- LÓGICA ESPECÍFICA DE SIGNO Y CONCEPTO PARA DAVIVIENDA ---
+            if df["monto"].abs().sum() > 0 and 'concepto' in df.columns:
+                
+                # Concatenar concepto: Lo haremos más adelante en normalizar_dataframe,
+                # pero aquí usamos la columna de Transacción si fue mapeada a 'concepto'.
+                
+                # 1. Definir términos de Débito (salidas -> deberían ser NEGATIVOS)
+                terminos_debito = ['débito', 'debito', 'nota débito', 'cargo', 'retiro', 'dcto', 'descuento']
+                es_debito_extracto = df['concepto'].astype(str).str.lower().apply(lambda x: any(term in x for term in terminos_debito))
+
+                # 2. Aplicar el signo NEGATIVO a Débitos POSITIVOS (formato de Davivienda)
+                if not invertir_signos:
+                    df.loc[es_debito_extracto & (df['monto'] > 0), 'monto'] *= -1
+                else:
+                    df.loc[es_debito_extracto & (df['monto'] < 0), 'monto'] *= -1
+
+                st.success("Davivienda: Lógica de signos aplicada correctamente.")
+            # ------------------------------------------------------------
+            
+        else:
+            # BBVA/Bogotá/Auxiliar: Conversión simple
+            df["monto"] = pd.to_numeric(df["monto"], errors='coerce').fillna(0)
+
+        # Advertencia final
+        if df["monto"].abs().sum() == 0 and df.shape[0] > 0:
+             st.warning(f"La columna 'monto' de {nombre_archivo} resultó en ceros. Revise la columna de Monto y el tipo de movimiento.")
+        
         return df
 
+    # [BLOQUE 2: MANEJO DE DÉBITOS Y CRÉDITOS SEPARADOS]
+    
+    # ... (El código de tu lógica original para encontrar y definir signos de débitos/créditos separados) ...
+    terminos_debitos = ["deb", "debe", "cargo", "débito", "valor débito"]
+    # ... (y el resto del código hasta la definición de signos) ...
+    
     # Definir términos para identificar débitos y créditos
     terminos_debitos = ["deb", "debe", "cargo", "débito", "valor débito"]
     terminos_creditos = ["cred", "haber", "abono", "crédito", "valor crédito"]
@@ -408,55 +456,53 @@ def procesar_montos(df, nombre_archivo, es_extracto=False, invertir_signos=False
         signo_debito = 1
         signo_credito = -1
 
+    # Ciclo de procesamiento (usando la lógica original simple o la robusta si se necesita)
     for col in cols_debito:
         try:
-            # 1. INTENTO SIMPLE (Lógica original: Funciona para Auxiliar y Extractos limpios como BBVA)
+            # 1. INTENTO SIMPLE (Lógica base: funciona para Auxiliar y Extractos limpios)
             simple_conversion = pd.to_numeric(df[col], errors='coerce')
             
-            # 2. LÓGICA CONDICIONAL: Solo si es Extracto Y la conversión simple FALLÓ casi por completo
-            # Usamos un umbral de éxito: si menos del 5% de las filas se convirtieron correctamente, asumimos fallo de formato.
+            # 2. LÓGICA CONDICIONAL DE DETECCIÓN (Solo se usa si no se seleccionó Davivienda y si la conversión simple falla)
+            # Mantenemos esta lógica para la "detección automática" de formatos no estándar.
             valid_count = simple_conversion.notna().sum()
             
-            if es_extracto and valid_count < (len(df) * 0.05):
-                # Conversión simple falló. Aplicamos la limpieza robusta (Davivienda).
-                st.info(f"Aplicando limpieza robusta (formato latino) a la columna de débito '{col}' en {nombre_archivo}.")
+            # Si el banco es 'Generico' o no es Davivienda y la conversión falló, aplicamos limpieza robusta.
+            if es_extracto and banco_seleccionado != "Davivienda" and valid_count < (len(df) * 0.05):
+                st.info(f"Aplicando limpieza robusta (detección automática) a la columna de débito '{col}' en {nombre_archivo}.")
                 cleaned_series = limpiar_monto_latino(df[col]).fillna(0)
             else:
-                # Conversión simple exitosa (BBVA) o es el Auxiliar. Usamos el resultado simple.
+                # Caso Auxiliar, BBVA/Bogotá, o Davivienda no seleccionada que no falló la conversión simple
                 cleaned_series = simple_conversion.fillna(0)
             
-            # Aplicar a la columna y al monto total
-            df[col] = cleaned_series 
+            df[col] = cleaned_series
             df["monto"] += cleaned_series * signo_debito
             
         except Exception as e:
             st.warning(f"Error al procesar columna de débito '{col}' en {nombre_archivo}: {e}")
+
+    # (Repetir lógica similar para cols_credito)
 
     for col in cols_credito:
         try:
             # 1. INTENTO SIMPLE (Lógica original)
             simple_conversion = pd.to_numeric(df[col], errors='coerce')
             
-            # 2. LÓGICA CONDICIONAL: Solo si es Extracto Y la conversión simple FALLÓ casi por completo
+            # 2. LÓGICA CONDICIONAL DE DETECCIÓN
             valid_count = simple_conversion.notna().sum()
             
-            if es_extracto and valid_count < (len(df) * 0.05):
-                # Conversión simple falló. Aplicamos la limpieza robusta (Davivienda).
-                st.info(f"Aplicando limpieza robusta (formato latino) a la columna de crédito '{col}' en {nombre_archivo}.")
+            if es_extracto and banco_seleccionado != "Davivienda" and valid_count < (len(df) * 0.05):
+                st.info(f"Aplicando limpieza robusta (detección automática) a la columna de crédito '{col}' en {nombre_archivo}.")
                 cleaned_series = limpiar_monto_latino(df[col]).fillna(0)
             else:
-                # Conversión simple exitosa o es el Auxiliar. Usamos el resultado simple.
                 cleaned_series = simple_conversion.fillna(0)
             
-            # Aplicar a la columna y al monto total
-            df[col] = cleaned_series 
+            df[col] = cleaned_series
             df["monto"] += cleaned_series * signo_credito
 
         except Exception as e:
             st.warning(f"Error al procesar columna de crédito '{col}' en {nombre_archivo}: {e}")
-
+    
     # [CÓDIGO ORIGINAL - Lógica de verificación final]
-    # Verificar resultado
     if df["monto"].eq(0).all() and (cols_debito or cols_credito):
         st.warning(f"La columna 'monto' resultó en ceros en {nombre_archivo}. Verifica las columnas de débitos/créditos.")
 
@@ -905,7 +951,7 @@ if auxiliar_file:
 if 'invertir_signos' not in st.session_state:
     st.session_state.invertir_signos = False
 
-def realizar_conciliacion(extracto_file, auxiliar_file, mes_conciliacion, invertir_signos):
+def realizar_conciliacion(extracto_file, auxiliar_file, mes_conciliacion, invertir_signos, banco_seleccionado):
     # Definir columnas esperadas
     columnas_esperadas_extracto = {
         "fecha": ["fecha de operación", "fecha", "date", "fecha_operacion", "f. operación", "fecha de sistema"],
@@ -930,8 +976,8 @@ def realizar_conciliacion(extracto_file, auxiliar_file, mes_conciliacion, invert
     auxiliar_df = leer_datos_desde_encabezados(auxiliar_file, columnas_esperadas_auxiliar, "Libro Auxiliar")
 
     # Procesar montos
-    auxiliar_df = procesar_montos(auxiliar_df, "Libro Auxiliar", es_extracto=False)
-    extracto_df = procesar_montos(extracto_df, "Extracto Bancario", es_extracto=True, invertir_signos=invertir_signos)
+    auxiliar_df = procesar_montos(auxiliar_df, "Libro Auxiliar", es_extracto=False, banco_seleccionado="Generico")
+    extracto_df = procesar_montos(extracto_df, "Extracto Bancario", es_extracto=True, invertir_signos=invertir_signos, banco_seleccionado)
 
     # Estandarizar fechas
     auxiliar_df = estandarizar_fechas(auxiliar_df, "Libro Auxiliar", mes_conciliacion=None)
