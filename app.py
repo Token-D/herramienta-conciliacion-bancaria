@@ -35,7 +35,7 @@ def buscar_fila_encabezados(df, columnas_esperadas, max_filas=30, banco=None): #
     # Lo agregamos como '*valor' para forzar una coincidencia EXACTA, lo que es más seguro para encabezados únicos.
     if es_bancolombia:
         # st.write("Detectado Bancolombia: Buscando 'valor' como encabezado de monto.") # Puedes descomentar esto para depuración
-        monto_variants_to_search.add('*valor')
+        monto_variants_to_search.add('valor')
     
     monto_variants_to_search = list(monto_variants_to_search)
 
