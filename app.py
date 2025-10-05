@@ -662,21 +662,33 @@ def conciliacion_directa(extracto_df, auxiliar_df):
     resultados_df = pd.DataFrame(resultados)
     return resultados_df, extracto_conciliado_idx, auxiliar_conciliado_idx
 
-# Función para la conciliación por agrupación en el libro auxiliar
 def conciliacion_agrupacion_auxiliar(extracto_df, auxiliar_df, extracto_conciliado_idx, auxiliar_conciliado_idx):
     """
     Busca grupos de valores en el libro auxiliar que sumen el monto de un movimiento en el extracto.
+    Garantiza que cada registro del auxiliar se concilie solo una vez.
     """
     resultados = []
     nuevos_extracto_conciliado = set()
     nuevos_auxiliar_conciliado = set()
     
     # Filtrar los registros aún no conciliados
-    extracto_no_conciliado = extracto_df[~extracto_df.index.isin(extracto_conciliado_idx)]
-    auxiliar_no_conciliado = auxiliar_df[~auxiliar_df.index.isin(auxiliar_conciliado_idx)]
+    extracto_no_conciliado = extracto_df[~extracto_df.index.isin(extracto_conciliado_idx)].copy()
+    auxiliar_no_conciliado = auxiliar_df[~auxiliar_df.index.isin(auxiliar_conciliado_idx)].copy()
     
     # Para cada movimiento no conciliado del extracto
-    for idx_extracto, fila_extracto in extracto_no_conciliado.iterrows():
+    # NOTA: Usamos .iterrows() en una copia o en el DataFrame original filtrado,
+    # pero el cambio crucial es la actualización interna de 'auxiliar_no_conciliado'.
+    
+    # Creamos una lista de índices del extracto para iterar
+    indices_extracto_a_iterar = extracto_no_conciliado.index.tolist()
+
+    for idx_extracto in indices_extracto_a_iterar:
+        # Aseguramos que la fila todavía exista en el extracto no conciliado (aunque no debería cambiar en este loop)
+        if idx_extracto not in extracto_no_conciliado.index:
+            continue
+            
+        fila_extracto = extracto_no_conciliado.loc[idx_extracto]
+
         # Buscar combinaciones en el libro auxiliar
         indices_combinacion = encontrar_combinaciones(
             auxiliar_no_conciliado, 
@@ -685,12 +697,25 @@ def conciliacion_agrupacion_auxiliar(extracto_df, auxiliar_df, extracto_concilia
         )
         
         if indices_combinacion:
-            # Marcar como conciliados
+            # ----------------------------------------------------
+            # CAMBIOS CLAVE: Registrar y ELIMINAR del set de trabajo
+            # ----------------------------------------------------
+            
+            # 1. Marcar como conciliados (para el set de retorno)
             nuevos_extracto_conciliado.add(idx_extracto)
             nuevos_auxiliar_conciliado.update(indices_combinacion)
             
+            # 2. **ACTUALIZACIÓN CRÍTICA**: Eliminar los índices usados del DataFrame de trabajo.
+            #    Esto evita que el auxiliar_no_conciliado los considere en la siguiente iteración.
+            auxiliar_no_conciliado = auxiliar_no_conciliado.drop(indices_combinacion, errors='ignore')
+            
+            # ----------------------------------------------------
+            
             # Obtener números de documento
-            docs_conciliacion = auxiliar_no_conciliado.loc[indices_combinacion, "numero_movimiento"].astype(str).tolist()
+            # NOTA: Usamos los índices sobre el auxiliar_df original para evitar KeyErrors
+            # si el 'auxiliar_no_conciliado' ya no tiene esos índices (aunque 'indices_combinacion'
+            # garantiza que los tenga si se encontraron en el paso anterior).
+            docs_conciliacion = auxiliar_df.loc[list(indices_combinacion), "numero_movimiento"].astype(str).tolist()
             docs_conciliacion = [str(doc) for doc in docs_conciliacion]
             
             # Añadir a resultados - Movimiento del extracto
@@ -710,7 +735,7 @@ def conciliacion_agrupacion_auxiliar(extracto_df, auxiliar_df, extracto_concilia
             
             # Añadir a resultados - Cada movimiento del libro auxiliar en la combinación
             for idx_aux in indices_combinacion:
-                fila_aux = auxiliar_no_conciliado.loc[idx_aux]
+                fila_aux = auxiliar_df.loc[idx_aux] # Usamos el auxiliar_df original aquí
                 resultados.append({
                     'fecha': fila_aux["fecha"],
                     'tercero': fila_aux.get("tercero", ""),
@@ -727,21 +752,30 @@ def conciliacion_agrupacion_auxiliar(extracto_df, auxiliar_df, extracto_concilia
     
     return pd.DataFrame(resultados), nuevos_extracto_conciliado, nuevos_auxiliar_conciliado
 
-# Función para la conciliación por agrupación en el extracto bancario
 def conciliacion_agrupacion_extracto(extracto_df, auxiliar_df, extracto_conciliado_idx, auxiliar_conciliado_idx):
     """
     Busca grupos de valores en el extracto que sumen el monto de un movimiento en el libro auxiliar.
+    Garantiza que cada registro del extracto se concilie solo una vez.
     """
     resultados = []
     nuevos_extracto_conciliado = set()
     nuevos_auxiliar_conciliado = set()
     
     # Filtrar los registros aún no conciliados
-    extracto_no_conciliado = extracto_df[~extracto_df.index.isin(extracto_conciliado_idx)]
-    auxiliar_no_conciliado = auxiliar_df[~auxiliar_df.index.isin(auxiliar_conciliado_idx)]
+    extracto_no_conciliado = extracto_df[~extracto_df.index.isin(extracto_conciliado_idx)].copy()
+    auxiliar_no_conciliado = auxiliar_df[~auxiliar_df.index.isin(auxiliar_conciliado_idx)].copy()
+    
+    # Creamos una lista de índices del auxiliar para iterar
+    indices_auxiliar_a_iterar = auxiliar_no_conciliado.index.tolist()
     
     # Para cada movimiento no conciliado del libro auxiliar
-    for idx_auxiliar, fila_auxiliar in auxiliar_no_conciliado.iterrows():
+    for idx_auxiliar in indices_auxiliar_a_iterar:
+        # Aseguramos que la fila todavía exista en el auxiliar no conciliado
+        if idx_auxiliar not in auxiliar_no_conciliado.index:
+            continue
+            
+        fila_auxiliar = auxiliar_no_conciliado.loc[idx_auxiliar]
+
         # Buscar combinaciones en el extracto
         indices_combinacion = encontrar_combinaciones(
             extracto_no_conciliado, 
@@ -750,12 +784,22 @@ def conciliacion_agrupacion_extracto(extracto_df, auxiliar_df, extracto_concilia
         )
         
         if indices_combinacion:
-            # Marcar como conciliados
+            # ----------------------------------------------------
+            # CAMBIOS CLAVE: Registrar y ELIMINAR del set de trabajo
+            # ----------------------------------------------------
+            
+            # 1. Marcar como conciliados (para el set de retorno)
             nuevos_auxiliar_conciliado.add(idx_auxiliar)
             nuevos_extracto_conciliado.update(indices_combinacion)
             
+            # 2. **ACTUALIZACIÓN CRÍTICA**: Eliminar los índices usados del DataFrame de trabajo.
+            #    Esto evita que el extracto_no_conciliado los considere en la siguiente iteración.
+            extracto_no_conciliado = extracto_no_conciliado.drop(indices_combinacion, errors='ignore')
+            
+            # ----------------------------------------------------
+            
             # Obtener números de movimiento
-            nums_movimiento = extracto_no_conciliado.loc[indices_combinacion, "numero_movimiento"].astype(str).tolist()
+            nums_movimiento = extracto_df.loc[list(indices_combinacion), "numero_movimiento"].astype(str).tolist()
             nums_movimiento = [str(num) for num in nums_movimiento]
             
             # Añadir a resultados - Movimiento del libro auxiliar
@@ -775,7 +819,7 @@ def conciliacion_agrupacion_extracto(extracto_df, auxiliar_df, extracto_concilia
             
             # Añadir a resultados - Cada movimiento del extracto en la combinación
             for idx_ext in indices_combinacion:
-                fila_ext = extracto_no_conciliado.loc[idx_ext]
+                fila_ext = extracto_df.loc[idx_ext] # Usamos el extracto_df original aquí
                 resultados.append({
                     'fecha': fila_ext["fecha"],
                     'tercero': '',
