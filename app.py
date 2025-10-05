@@ -5,6 +5,7 @@ from itertools import combinations
 from dateutil.parser import parse as parse_date
 import re
 from collections import Counter
+from itertools import combinations
 
 # Función para buscar la fila de encabezados
 def buscar_fila_encabezados(df, columnas_esperadas, max_filas=30):
@@ -512,16 +513,38 @@ def procesar_montos(df, nombre_archivo, es_extracto=False, invertir_signos=False
 def encontrar_combinaciones(df, monto_objetivo, tolerancia=0.01, max_combinacion=4):
     """
     Encuentra combinaciones de valores en df['monto'] que sumen aproximadamente monto_objetivo.
+    Restringe la búsqueda a valores del MISMO SIGNO que el objetivo.
     Devuelve lista de índices de las filas que conforman la combinación.
     """
-    # Asegurarse de que los montos sean numéricos
+    
+    # 1. Preparar monto_objetivo y determinar el signo
+    try:
+        monto_objetivo = float(monto_objetivo)
+    except (ValueError, TypeError):
+        return []
+
+    # Determinar si el objetivo es positivo o negativo.
+    # Usamos la tolerancia para incluir los ceros en el grupo adecuado.
+    es_objetivo_positivo = monto_objetivo >= 0 
+    
     movimientos = []
     indices_validos = []
     
+    # 2. Iterar y filtrar por signo
     for idx, valor in zip(df.index, df["monto"]):
         try:
-            # Intentar convertir a numérico
             valor_num = float(valor)
+            
+            # --- LÓGICA DE FILTRADO DE SIGNO (NUEVA) ---
+            # Si el objetivo es positivo, solo incluimos valores >= -tolerancia (casi cero o positivo)
+            if es_objetivo_positivo and valor_num < -tolerancia:
+                continue
+            
+            # Si el objetivo es negativo, solo incluimos valores <= tolerancia (casi cero o negativo)
+            if not es_objetivo_positivo and valor_num > tolerancia:
+                continue
+            # -------------------------------------------
+
             movimientos.append(valor_num)
             indices_validos.append(idx)
         except (ValueError, TypeError):
@@ -530,20 +553,18 @@ def encontrar_combinaciones(df, monto_objetivo, tolerancia=0.01, max_combinacion
     
     if not movimientos:
         return []
-    
+        
     combinaciones_validas = []
     
-    # Convertir monto_objetivo a numérico
-    try:
-        monto_objetivo = float(monto_objetivo)
-    except (ValueError, TypeError):
-        return []
+    # 3. Buscar combinaciones (la lógica sigue igual)
     
     # Limitar la búsqueda a combinaciones pequeñas
     for r in range(1, min(max_combinacion, len(movimientos)) + 1):
         for combo_indices in combinations(range(len(movimientos)), r):
             combo_valores = [movimientos[i] for i in combo_indices]
             suma = sum(combo_valores)
+            
+            # NOTA: La tolerancia en el filtro inicial ya maneja los ceros.
             if abs(suma - monto_objetivo) <= tolerancia:
                 indices_combinacion = [indices_validos[i] for i in combo_indices]
                 combinaciones_validas.append((indices_combinacion, combo_valores))
