@@ -11,10 +11,21 @@ from itertools import combinations
 def buscar_fila_encabezados(df, columnas_esperadas, max_filas=30):
     """
     Busca la fila que contiene al menos 'fecha' y una columna de monto (monto, debitos o creditos).
-    Otras columnas son opcionales.
+    Soporta coincidencia exacta si la variante comienza con un asterisco (*).
     """
-    columnas_esperadas_lower = {col: [variante.lower() for variante in variantes] 
-                                for col, variantes in columnas_esperadas.items()}
+    
+    # Normalizar variantes, quitando el asterisco para la comparación.
+    columnas_esperadas_lower = {}
+    for col, variantes in columnas_esperadas.items():
+        columnas_esperadas_lower[col] = []
+        for variante in variantes:
+            variante_lower = variante.lower()
+            if variante_lower.startswith('*'):
+                # Guardamos la variante con el * si requiere coincidencia exacta.
+                columnas_esperadas_lower[col].append(variante_lower)
+            else:
+                columnas_esperadas_lower[col].append(variante_lower)
+
 
     for idx in range(min(max_filas, len(df))):
         fila = df.iloc[idx]
@@ -26,22 +37,33 @@ def buscar_fila_encabezados(df, columnas_esperadas, max_filas=30):
 
         # Revisar cada celda en la fila
         for celda in celdas:
+            
+            # Función helper para verificar si una celda coincide con las variantes esperadas
+            def check_match(celda, variantes_esperadas):
+                for variante in variantes_esperadas:
+                    if variante.startswith('*'):
+                        # Coincidencia Exacta requerida (quitamos el '*')
+                        if celda == variante[1:]: 
+                            return True
+                    elif variante in celda:
+                        # Coincidencia parcial (el nombre esperado está contenido en la celda)
+                        return True
+                return False
+
             # Verificar 'fecha'
-            if 'fecha' in columnas_esperadas_lower and any(variante in celda for variante in columnas_esperadas_lower['fecha']):
+            if 'fecha' in columnas_esperadas_lower and check_match(celda, columnas_esperadas_lower['fecha']):
                 tiene_fecha = True
+            
             # Verificar columnas de monto (monto, debitos o creditos)
-            if 'monto' in columnas_esperadas_lower and any(variante in celda for variante in columnas_esperadas_lower['monto']):
-                tiene_monto = True
-            elif 'debitos' in columnas_esperadas_lower and any(variante in celda for variante in columnas_esperadas_lower['debitos']):
-                tiene_monto = True
-            elif 'creditos' in columnas_esperadas_lower and any(variante in celda for variante in columnas_esperadas_lower['creditos']):
+            if any(col in columnas_esperadas_lower and check_match(celda, columnas_esperadas_lower[col]) 
+                   for col in ['monto', 'debitos', 'creditos']):
                 tiene_monto = True
 
-        # Si se encuentran los mínimos necesarios (fecha y algún monto)
+        # Si encontramos una fila que contiene al menos fecha y monto, la retornamos
         if tiene_fecha and tiene_monto:
-            return idx
+            return idx, columnas_esperadas_lower
 
-    return None
+    return None, None
     
 # Función para leer datos a partir de la fila de encabezados
 def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, max_filas=30):
@@ -1047,7 +1069,7 @@ def realizar_conciliacion(extracto_file, auxiliar_file, mes_conciliacion, invert
     # Definir columnas esperadas
     columnas_esperadas_extracto = {
         "fecha": ["fecha de operación", "fecha", "date", "fecha_operacion", "f. operación", "fecha de sistema"],
-        "monto": ["importe (cop)", "monto", "amount", "importe", "valor total","valor"],
+        "monto": ["importe (cop)", "monto", "amount", "importe", "*valor total","*valor"],
         "concepto": ["concepto", "descripción", "concepto banco", "descripcion", "transacción", "transaccion", "descripción motivo"],
         "numero_movimiento": ["número de movimiento", "numero de movimiento", "movimiento", "no. movimiento", "num", "nro. documento", "documento"],
         "debitos": ["debitos", "débitos", "debe", "cargo", "cargos", "valor débito"],
