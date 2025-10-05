@@ -686,7 +686,7 @@ def conciliacion_directa(extracto_df, auxiliar_df):
 def conciliacion_agrupacion_auxiliar(extracto_df, auxiliar_df, extracto_conciliado_idx, auxiliar_conciliado_idx):
     """
     Busca grupos de valores en el libro auxiliar que sumen el monto de un movimiento en el extracto.
-    Garantiza que cada registro del auxiliar se concilie solo una vez y aplica formato de fecha DD/MM/YYYY.
+    Garantiza que cada registro del auxiliar se concilie solo una vez, manteniendo objetos datetime.
     """
     import pandas as pd
     
@@ -694,7 +694,7 @@ def conciliacion_agrupacion_auxiliar(extracto_df, auxiliar_df, extracto_concilia
     nuevos_extracto_conciliado = set()
     nuevos_auxiliar_conciliado = set()
     
-    # Filtrar los registros aún no conciliados (usamos .copy() para evitar SettingWithCopyWarning)
+    # Filtrar los registros aún no conciliados
     extracto_no_conciliado = extracto_df[~extracto_df.index.isin(extracto_conciliado_idx)].copy()
     auxiliar_no_conciliado = auxiliar_df[~auxiliar_df.index.isin(auxiliar_conciliado_idx)].copy()
     
@@ -702,13 +702,12 @@ def conciliacion_agrupacion_auxiliar(extracto_df, auxiliar_df, extracto_concilia
     indices_extracto_a_iterar = extracto_no_conciliado.index.tolist()
 
     for idx_extracto in indices_extracto_a_iterar:
-        # Si la fila ha sido movida por algún otro proceso (poco probable aquí), saltar
         if idx_extracto not in extracto_no_conciliado.index:
             continue
             
         fila_extracto = extracto_no_conciliado.loc[idx_extracto]
 
-        # Buscar combinaciones en el libro auxiliar (con filtro de signo incluido en encontrar_combinaciones)
+        # Buscar combinaciones en el libro auxiliar (con filtro de signo incluido)
         indices_combinacion = encontrar_combinaciones(
             auxiliar_no_conciliado, 
             fila_extracto["monto"],
@@ -721,19 +720,18 @@ def conciliacion_agrupacion_auxiliar(extracto_df, auxiliar_df, extracto_concilia
             nuevos_auxiliar_conciliado.update(indices_combinacion)
             
             # 2. **ACTUALIZACIÓN CRÍTICA (UNICIDAD)**: Eliminar los índices usados del DataFrame de trabajo del auxiliar.
-            # Esto evita que los registros del auxiliar se reutilicen en la siguiente iteración del extracto.
             auxiliar_no_conciliado = auxiliar_no_conciliado.drop(indices_combinacion, errors='ignore')
             
-            # 3. **FORMATO DE FECHA**: Aplicar formato de fecha DD/MM/YYYY al registro del extracto
-            fecha_extracto_str = fila_extracto["fecha"].strftime('%d/%m/%Y')
-            
-            # 4. Obtener números de documento (usamos el auxiliar_df original para evitar errores)
+            # 3. **FECHA**: Usamos el objeto datetime original (¡REVERTIDO!)
+            fecha_extracto = fila_extracto["fecha"] 
+
+            # 4. Obtener números de documento
             docs_conciliacion = auxiliar_df.loc[indices_combinacion, "numero_movimiento"].astype(str).tolist()
             docs_conciliacion = [str(doc) for doc in docs_conciliacion]
             
             # Añadir a resultados - Movimiento del extracto
             resultados.append({
-                'fecha': fecha_extracto_str,
+                'fecha': fecha_extracto, # <--- OBJETO DATETIME
                 'tercero': '',
                 'concepto': fila_extracto.get("concepto", ""),
                 'numero_movimiento': fila_extracto.get("numero_movimiento", ""),
@@ -750,11 +748,11 @@ def conciliacion_agrupacion_auxiliar(extracto_df, auxiliar_df, extracto_concilia
             for idx_aux in indices_combinacion:
                 fila_aux = auxiliar_df.loc[idx_aux] # Usamos el auxiliar_df original
                 
-                # Formato de fecha para la línea del auxiliar
-                fecha_auxiliar_str = fila_aux["fecha"].strftime('%d/%m/%Y')
+                # FECHA: Revertimos a usar el objeto datetime original (¡REVERTIDO!)
+                fecha_auxiliar = fila_aux["fecha"] 
                 
                 resultados.append({
-                    'fecha': fecha_auxiliar_str,
+                    'fecha': fecha_auxiliar, # <--- OBJETO DATETIME
                     'tercero': fila_aux.get("tercero", ""),
                     'concepto': fila_aux.get("nota", ""),
                     'numero_movimiento': fila_aux.get("numero_movimiento", ""),
@@ -908,6 +906,24 @@ def conciliar_banco_completo(extracto_df, auxiliar_df):
     return resultados_finales
 
 def aplicar_formato_excel(writer, resultados_df):
+    """
+    Aplica formatos específicos (encabezados, fechas, moneda, no conciliados) 
+    al DataFrame de resultados antes de guardarlo en Excel.
+    """
+    
+    # ----------------------------------------------------
+    # CAMBIO CRÍTICO: Asegurar que la columna 'fecha' sea datetime
+    # Esto soluciona el error 'Unknown or unsupported datetime type'
+    # ----------------------------------------------------
+    try:
+        # Intenta convertir la columna 'fecha' al formato datetime de Pandas.
+        # Usa errors='coerce' para convertir fechas inválidas a NaT (Not a Time).
+        resultados_df['fecha'] = pd.to_datetime(resultados_df['fecha'], errors='coerce')
+    except KeyError:
+        # En caso de que la columna 'fecha' no exista, se ignora (aunque es poco probable)
+        pass
+    # ----------------------------------------------------
+
     worksheet = writer.sheets['Resultados']
     workbook = writer.book
     
@@ -915,6 +931,7 @@ def aplicar_formato_excel(writer, resultados_df):
         'bold': True, 'align': 'center', 'valign': 'vcenter', 'text_wrap': True,
         'border': 1, 'bg_color': '#D9E1F2'
     })
+    # Se usa 'dd/mm/yyyy' para forzar el formato deseado en Excel
     formato_fecha = workbook.add_format({'num_format': 'dd/mm/yyyy'})
     formato_moneda = workbook.add_format({'num_format': '_($* #,##0.00_);_($* (#,##0.00);_($* "-"??_);_(@_)'})
     formato_no_conciliado = workbook.add_format({'bg_color': '#FFCCCB'})
@@ -935,9 +952,11 @@ def aplicar_formato_excel(writer, resultados_df):
         if col_lower == 'fecha':
             for row_num in range(1, len(resultados_df) + 1):
                 valor = resultados_df.iloc[row_num-1][col]
+                # Verifica si el valor no es NaT (la versión datetime de NaN)
                 if pd.isna(valor):
                     worksheet.write(row_num, i, "", formato_fecha)
                 else:
+                    # Este método ahora funciona porque el valor es garantizado ser un datetime object
                     worksheet.write_datetime(row_num, i, valor, formato_fecha)
         
         elif col_lower == 'monto':
@@ -953,23 +972,31 @@ def aplicar_formato_excel(writer, resultados_df):
                 estado = resultados_df.iloc[row_num-1][col]
                 if estado == 'No Conciliado':
                     for col_idx in range(len(resultados_df.columns)):
+                        # Escribir el estado en la celda 'estado'
                         if col_idx == i:
                             worksheet.write(row_num, col_idx, estado, formato_no_conciliado)
                         else:
-                            valor = resultados_df.iloc[row_num-1][resultados_df.columns[col_idx]]
-                            if resultados_df.columns[col_idx].lower() == 'fecha':
+                            # Aplicar formato de fila 'No Conciliado'
+                            col_name = resultados_df.columns[col_idx]
+                            valor = resultados_df.iloc[row_num-1][col_name]
+                            
+                            if col_name.lower() == 'fecha':
                                 formato_combinado = workbook.add_format({'num_format': 'dd/mm/yyyy', 'bg_color': '#FFCCCB'})
                                 if pd.isna(valor):
                                     worksheet.write(row_num, col_idx, "", formato_combinado)
                                 else:
+                                    # Usa write_datetime para fechas
                                     worksheet.write_datetime(row_num, col_idx, valor, formato_combinado)
-                            elif resultados_df.columns[col_idx].lower() == 'monto':
+                                    
+                            elif col_name.lower() == 'monto':
                                 formato_combinado = workbook.add_format({'num_format': '_($* #,##0.00_);_($* (#,##0.00);_($* "-"??_);_(@_)', 'bg_color': '#FFCCCB'})
                                 if pd.isna(valor):
                                     worksheet.write(row_num, col_idx, "", formato_combinado)
                                 else:
+                                    # Usa write_number para montos
                                     worksheet.write_number(row_num, col_idx, valor, formato_combinado)
                             else:
+                                # Usa write para otros tipos (texto/general)
                                 worksheet.write(row_num, col_idx, valor, formato_no_conciliado)
 
 # Interfaz de Streamlit
