@@ -8,58 +8,104 @@ from collections import Counter
 from itertools import combinations
 
 # Función para buscar la fila de encabezados
-def buscar_fila_encabezados(df, columnas_esperadas, max_filas=30):
+def buscar_fila_encabezados(df, columnas_esperadas, max_filas=30, banco=None):
     """
-    Busca la fila que contiene al menos 'fecha' y una columna de monto (monto, debitos o creditos).
-    Soporta coincidencia exacta si la variante comienza con un asterisco (*).
+    Busca la fila que contiene al menos 'fecha' y una columna de monto.
+    Añade lógica para detectar etiquetas de inicio de movimientos ("Movimientos:").
+    Incluye lógica específica de Bancolombia (Columna 5/VALOR).
     Retorna solo el índice de la fila (integer), o None si no se encuentra.
     """
     
-    # 1. Normalizar variantes a minúsculas y AÑADIR VARIANTE BÁSICA para mayor robustez.
-    columnas_esperadas_lower = {}
-    for col, variantes in columnas_esperadas.items():
-        base_variantes = [variante.lower() for variante in variantes]
-        
-        # AÑADIR VARIANTE BÁSICA PARA MAYOR ROBUSTEZ:
-        # Esto ayuda a que si el encabezado es exactamente 'FECHA' o 'MONTO',
-        # y no estaba listado como '*fecha' o 'monto' en el diccionario original, se detecte.
-        if col == 'fecha':
-            base_variantes.append('fecha')
-        elif col == 'monto':
-            base_variantes.extend(['monto', 'importe', 'valor', 'debito', 'credito'])
-            
-        columnas_esperadas_lower[col] = list(set(base_variantes)) # Usar set para evitar duplicados
+    es_bancolombia = banco and 'bancolombia' in banco.lower()
+
+    # Normalizar variantes a minúsculas
+    columnas_esperadas_lower = {col: [variante.lower() for variante in variantes] 
+                                for col, variantes in columnas_esperadas.items()}
+    
+    # Combinar variantes de monto/debito/credito y añadir variantes específicas
+    monto_variants_to_search = set()
+    for col in ['monto', 'debito', 'credito']:
+        if col in columnas_esperadas_lower:
+            monto_variants_to_search.update(columnas_esperadas_lower[col])
+    
+    # Añadir variantes básicas para robustez general
+    monto_variants_to_search.update(['monto', 'importe', 'valor', 'debito', 'credito'])
+    
+    # Lógica Bancolombia: Añadir "valor" como variante de búsqueda exacta/parcial
+    if es_bancolombia:
+        monto_variants_to_search.add('valor') # Buscar "valor"
+    
+    monto_variants_to_search = list(monto_variants_to_search)
+    
+    # Etiquetas comunes de inicio de la tabla de movimientos
+    etiquetas_inicio = ['movimientos:', 'detalles de movimientos', 'fecha', 'transacción']
+
+    # Función helper para verificar la coincidencia (Exacta vs Parcial)
+    def check_match(celda, variantes_esperadas):
+        for variante in variantes_esperadas:
+            if variante.startswith('*'):
+                # Coincidencia EXACTA (ej: '*fecha' debe ser 'fecha' y celda debe ser 'fecha')
+                if celda == variante[1:]:
+                    return True
+            else:
+                # Coincidencia PARCIAL (ej: 'fecha' debe estar en 'fecha de operación')
+                if variante in celda:
+                    return True
+        return False
+
 
     for idx in range(min(max_filas, len(df))):
         fila = df.iloc[idx]
-        celdas = [str(valor).lower() for valor in fila if pd.notna(valor)]
-
+        celdas = [str(valor).strip().lower() for valor in fila if pd.notna(valor)]
+        
         tiene_fecha = False
         tiene_monto = False
+        
+        # 1. BÚSQUEDA DEL INICIO DE LA TABLA (Etiqueta "Movimientos:")
+        if any(etiqueta in celda for celda in celdas for etiqueta in etiquetas_inicio):
+            # Si se encuentra la etiqueta de inicio, asumimos que la siguiente fila es el encabezado
+            # y la probamos inmediatamente si está dentro del rango
+            if idx + 1 < len(df):
+                idx_header_candidato = idx + 1
+                fila_candidata = df.iloc[idx_header_candidato]
+                celdas_candidatas = [str(valor).strip().lower() for valor in fila_candidata if pd.notna(valor)]
+                
+                # Re-evaluar la fila siguiente
+                for celda in celdas_candidatas:
+                    if 'fecha' in columnas_esperadas_lower and check_match(celda, columnas_esperadas_lower['fecha']):
+                        tiene_fecha = True
+                    if check_match(celda, monto_variants_to_search):
+                        tiene_monto = True
+                
+                # Si la fila siguiente es válida, retornamos su índice
+                if tiene_fecha and tiene_monto:
+                    return idx_header_candidato
+            continue # Continuar al siguiente índice si no fue el encabezado
 
-        # 2. Función helper para verificar la coincidencia (Exacta vs Parcial)
-        def check_match(celda, variantes_esperadas):
-            for variante in variantes_esperadas:
-                if variante.startswith('*'):
-                    # Coincidencia EXACTA (ej: '*fecha' debe ser 'fecha' y celda debe ser 'fecha')
-                    if celda == variante[1:]:
-                        return True
-                else:
-                    # Coincidencia PARCIAL (ej: 'fecha' debe estar en 'fecha de operación')
-                    if variante in celda:
-                        return True
-            return False
-
-        # 3. Revisar cada celda en la fila para los encabezados mínimos requeridos
+        # 2. BÚSQUEDA DIRECTA DE ENCABEZADOS (Lógica original + Bancolombia Columna 5)
         for celda in celdas:
             # Verificar 'fecha'
             if 'fecha' in columnas_esperadas_lower and check_match(celda, columnas_esperadas_lower['fecha']):
                 tiene_fecha = True
             
-            # Verificar columnas de monto (monto, debitos o creditos)
-            # Nota: 'monto' en columnas_esperadas_lower contiene todas las variantes de monto
-            if 'monto' in columnas_esperadas_lower and check_match(celda, columnas_esperadas_lower['monto']):
+            # Verificar columnas de monto
+            if check_match(celda, monto_variants_to_search):
                 tiene_monto = True
+
+        # LÓGICA DE FALLBACK EXCLUSIVA PARA BANCOLOMBIA: Columna 5 (Índice 4)
+        # Si se encontró la fecha pero no el monto por nombre, y es Bancolombia:
+        if es_bancolombia and tiene_fecha and not tiene_monto:
+            # Si la fila tiene al menos 5 columnas
+            if len(fila) >= 5:
+                # Comprobamos si el valor en esa posición (Columna 5) existe (no es NaN)
+                # No podemos confiar en el valor aquí, solo si el encabezado existe
+                header_col_5 = str(df.columns[4]).strip().lower()
+                if header_col_5 in monto_variants_to_search:
+                     tiene_monto = True
+                # También verificamos si la celda en la posición 4 de la fila actual no está vacía (como proxy de encabezado)
+                elif pd.notna(df.iloc[idx, 4]) and str(df.iloc[idx, 4]).strip() != '':
+                    tiene_monto = True # Asumimos que la columna 5 es el monto si tiene contenido en la fila de encabezado
+                    
         
         # 4. Si encontramos ambos requisitos, retornamos el índice de la fila.
         if tiene_fecha and tiene_monto:
