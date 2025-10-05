@@ -11,33 +11,59 @@ from itertools import combinations
 def buscar_fila_encabezados(df, columnas_esperadas, max_filas=30):
     """
     Busca la fila que contiene al menos 'fecha' y una columna de monto (monto, debitos o creditos).
-    Otras columnas son opcionales.
+    Soporta coincidencia exacta si la variante comienza con un asterisco (*).
+    Retorna solo el índice de la fila (integer), o None si no se encuentra.
     """
-    columnas_esperadas_lower = {col: [variante.lower() for variante in variantes] 
-                                for col, variantes in columnas_esperadas.items()}
+    
+    # 1. Normalizar variantes a minúsculas.
+    # También se combinan las variantes de monto/debito/credito en una sola lista para la verificación mínima.
+    columnas_esperadas_lower = {}
+    monto_variants_to_search = set()
+    
+    for col, variantes in columnas_esperadas.items():
+        lower_variantes = [variante.lower() for variante in variantes]
+        columnas_esperadas_lower[col] = lower_variantes
+        if col in ['monto', 'debitos', 'creditos']:
+            # Añadir todas las variantes de monto a la lista de búsqueda mínima
+            monto_variants_to_search.update([v.lstrip('*') if v.startswith('*') else v for v in lower_variantes])
+
+    monto_variants_to_search = list(monto_variants_to_search)
+
+    # 2. Función helper para verificar la coincidencia (Exacta vs Parcial)
+    def check_match(celda, variantes_esperadas):
+        celda = str(celda).strip().lower()
+        for variante in variantes_esperadas:
+            variante_limpia = variante.lstrip('*')
+            
+            if variante.startswith('*'):
+                # Coincidencia EXACTA (para Bancolombia: 'fecha' == 'fecha')
+                if celda == variante_limpia:
+                    return True
+            else:
+                # Coincidencia PARCIAL (para otros bancos: 'fecha' in 'fecha de operación')
+                if variante_limpia in celda:
+                    return True
+        return False
 
     for idx in range(min(max_filas, len(df))):
         fila = df.iloc[idx]
-        celdas = [str(valor).lower() for valor in fila if pd.notna(valor)]
+        # Limpiar y convertir a minúsculas todas las celdas de la fila
+        celdas = [str(valor).strip().lower() for valor in fila if pd.notna(valor)]
 
-        # Variables para verificar coincidencias mínimas
         tiene_fecha = False
         tiene_monto = False
 
-        # Revisar cada celda en la fila
+        # 3. BÚSQUEDA DIRECTA DE ENCABEZADOS
         for celda in celdas:
             # Verificar 'fecha'
-            if 'fecha' in columnas_esperadas_lower and any(variante in celda for variante in columnas_esperadas_lower['fecha']):
+            if 'fecha' in columnas_esperadas_lower and check_match(celda, columnas_esperadas_lower['fecha']):
                 tiene_fecha = True
+            
             # Verificar columnas de monto (monto, debitos o creditos)
-            if 'monto' in columnas_esperadas_lower and any(variante in celda for variante in columnas_esperadas_lower['monto']):
-                tiene_monto = True
-            elif 'debitos' in columnas_esperadas_lower and any(variante in celda for variante in columnas_esperadas_lower['debitos']):
-                tiene_monto = True
-            elif 'creditos' in columnas_esperadas_lower and any(variante in celda for variante in columnas_esperadas_lower['creditos']):
+            if check_match(celda, monto_variants_to_search):
                 tiene_monto = True
 
-        # Si se encuentran los mínimos necesarios (fecha y algún monto)
+        # 4. Si encontramos ambos requisitos, retornamos el índice de la fila.
         if tiene_fecha and tiene_monto:
             return idx
 
