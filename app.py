@@ -22,6 +22,20 @@ def buscar_fila_encabezados(df, columnas_esperadas, max_filas=30, banco=None):
     columnas_esperadas_lower = {col: [variante.lower() for variante in variantes] 
                                 for col, variantes in columnas_esperadas.items()}
     
+    # Lógica especial para Bancolombia: Usar coincidencias EXACTAS para evitar conflictos
+    if es_bancolombia:
+        # Forzar coincidencia exacta para 'fecha' y 'valor' (monto)
+        columnas_esperadas_lower['fecha'] = ['*fecha']  # Exacta 'fecha'
+        columnas_esperadas_lower['monto'] = ['*valor']  # Exacta 'valor'
+        
+        # Añadir coincidencia exacta para 'concepto' como 'descripción' si no existe
+        if 'concepto' not in columnas_esperadas_lower:
+            columnas_esperadas_lower['concepto'] = ['*descripción']  # Exacta 'descripción'
+        
+        # No buscar 'numero_movimiento' para Bancolombia (no existe)
+        if 'numero_movimiento' in columnas_esperadas_lower:
+            del columnas_esperadas_lower['numero_movimiento']
+    
     # Combinar variantes de monto/debito/credito y añadir variantes específicas
     monto_variants_to_search = set()
     for col in ['monto', 'debito', 'credito']:
@@ -33,7 +47,7 @@ def buscar_fila_encabezados(df, columnas_esperadas, max_filas=30, banco=None):
     
     # Lógica Bancolombia: Añadir "valor" como variante de búsqueda exacta/parcial
     if es_bancolombia:
-        monto_variants_to_search.add('valor') # Buscar "valor"
+        monto_variants_to_search.add('*valor')  # Asegurar exacta
     
     monto_variants_to_search = list(monto_variants_to_search)
     
@@ -52,7 +66,6 @@ def buscar_fila_encabezados(df, columnas_esperadas, max_filas=30, banco=None):
                 if variante in celda:
                     return True
         return False
-
 
     for idx in range(min(max_filas, len(df))):
         fila = df.iloc[idx]
@@ -80,7 +93,7 @@ def buscar_fila_encabezados(df, columnas_esperadas, max_filas=30, banco=None):
                 # Si la fila siguiente es válida, retornamos su índice
                 if tiene_fecha and tiene_monto:
                     return idx_header_candidato
-            continue # Continuar al siguiente índice si no fue el encabezado
+            continue  # Continuar al siguiente índice si no fue el encabezado
 
         # 2. BÚSQUEDA DIRECTA DE ENCABEZADOS (Lógica original + Bancolombia Columna 5)
         for celda in celdas:
@@ -99,13 +112,12 @@ def buscar_fila_encabezados(df, columnas_esperadas, max_filas=30, banco=None):
             if len(fila) >= 5:
                 # Comprobamos si el valor en esa posición (Columna 5) existe (no es NaN)
                 # No podemos confiar en el valor aquí, solo si el encabezado existe
-                header_col_5 = str(df.columns[4]).strip().lower()
-                if header_col_5 in monto_variants_to_search:
-                     tiene_monto = True
+                header_col_5 = str(df.columns[4]).strip().lower() if len(df.columns) > 4 else str(fila[4]).strip().lower()
+                if '*valor' in monto_variants_to_search and check_match(header_col_5, ['*valor']):
+                    tiene_monto = True
                 # También verificamos si la celda en la posición 4 de la fila actual no está vacía (como proxy de encabezado)
-                elif pd.notna(df.iloc[idx, 4]) and str(df.iloc[idx, 4]).strip() != '':
-                    tiene_monto = True # Asumimos que la columna 5 es el monto si tiene contenido en la fila de encabezado
-                    
+                elif pd.notna(fila[4]) and str(fila[4]).strip().lower() == 'valor':
+                    tiene_monto = True  # Asumimos que la columna 5 es el monto si tiene 'valor' exacto
         
         # 4. Si encontramos ambos requisitos, retornamos el índice de la fila.
         if tiene_fecha and tiene_monto:
