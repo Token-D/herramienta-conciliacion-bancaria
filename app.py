@@ -8,9 +8,10 @@ from collections import Counter
 from itertools import combinations
 
 # Función para buscar la fila de encabezados
-def buscar_fila_encabezados(df, columnas_esperadas, max_filas=30):
+def buscar_fila_encabezados(df, columnas_esperadas, max_filas=30, banco=None): # <--- Nuevo parámetro 'banco'
     """
     Busca la fila que contiene al menos 'fecha' y una columna de monto (monto, debitos o creditos).
+    Si el 'banco' es 'bancolombia', se busca adicionalmente el encabezado 'valor' como columna de monto.
     Soporta coincidencia exacta si la variante comienza con un asterisco (*).
     Retorna solo el índice de la fila (integer), o None si no se encuentra.
     """
@@ -19,6 +20,25 @@ def buscar_fila_encabezados(df, columnas_esperadas, max_filas=30):
     columnas_esperadas_lower = {}
     for col, variantes in columnas_esperadas.items():
         columnas_esperadas_lower[col] = [variante.lower() for variante in variantes]
+
+    # Verificar si es Bancolombia para la lógica condicional
+    # Esto permite que el llamador pueda pasar 'Bancolombia', 'bancolombia' o 'BANCOLOMBIA'
+    es_bancolombia = banco and 'bancolombia' in banco.lower()
+
+    # Definir variantes de monto a buscar, combinando todos los grupos base
+    monto_variants_to_search = set()
+    for col in ['monto', 'debitos', 'creditos']:
+        if col in columnas_esperadas_lower:
+            monto_variants_to_search.update(columnas_esperadas_lower[col])
+            
+    # Lógica condicional: Si es Bancolombia, agregamos 'valor' a la búsqueda de monto.
+    # Lo agregamos como '*valor' para forzar una coincidencia EXACTA, lo que es más seguro para encabezados únicos.
+    if es_bancolombia:
+        # st.write("Detectado Bancolombia: Buscando 'valor' como encabezado de monto.") # Puedes descomentar esto para depuración
+        monto_variants_to_search.add('*valor')
+    
+    monto_variants_to_search = list(monto_variants_to_search)
+
 
     for idx in range(min(max_filas, len(df))):
         fila = df.iloc[idx]
@@ -33,7 +53,7 @@ def buscar_fila_encabezados(df, columnas_esperadas, max_filas=30):
             for variante in variantes_esperadas:
                 if variante.startswith('*'):
                     # Coincidencia EXACTA (comparamos con el texto sin el '*'):
-                    if celda == variante[1:]: 
+                    if celda == variante[1:]:
                         return True
                 elif variante in celda:
                     # Coincidencia parcial (el nombre esperado está contenido en la celda):
@@ -46,9 +66,9 @@ def buscar_fila_encabezados(df, columnas_esperadas, max_filas=30):
             if 'fecha' in columnas_esperadas_lower and check_match(celda, columnas_esperadas_lower['fecha']):
                 tiene_fecha = True
             
-            # Verificar columnas de monto (monto, debitos o creditos)
-            if any(col in columnas_esperadas_lower and check_match(celda, columnas_esperadas_lower[col]) 
-                   for col in ['monto', 'debitos', 'creditos']):
+            # Verificar columnas de monto (usando el conjunto combinado de variantes)
+            # Esto incluye 'monto', 'debitos', 'creditos' y, condicionalmente, 'valor' para Bancolombia.
+            if check_match(celda, monto_variants_to_search):
                 tiene_monto = True
 
         # Si encontramos una fila que contiene al menos fecha y monto, la retornamos
