@@ -768,31 +768,34 @@ def conciliacion_agrupacion_auxiliar(extracto_df, auxiliar_df, extracto_concilia
                 })
     
     return pd.DataFrame(resultados), nuevos_extracto_conciliado, nuevos_auxiliar_conciliado
+    
 def conciliacion_agrupacion_extracto(extracto_df, auxiliar_df, extracto_conciliado_idx, auxiliar_conciliado_idx):
     """
     Busca grupos de valores en el extracto que sumen el monto de un movimiento en el libro auxiliar.
-    Garantiza que cada registro del extracto se concilie solo una vez.
+    Garantiza que cada registro del extracto se concilie solo una vez y aplica formato de fecha DD/MM/YYYY.
     """
+    import pandas as pd
+    
     resultados = []
     nuevos_extracto_conciliado = set()
     nuevos_auxiliar_conciliado = set()
     
-    # Filtrar los registros aún no conciliados
+    # Filtrar los registros aún no conciliados (usamos .copy() para evitar SettingWithCopyWarning)
     extracto_no_conciliado = extracto_df[~extracto_df.index.isin(extracto_conciliado_idx)].copy()
     auxiliar_no_conciliado = auxiliar_df[~auxiliar_df.index.isin(auxiliar_conciliado_idx)].copy()
     
-    # Creamos una lista de índices del auxiliar para iterar
+    # Creamos una lista de índices del auxiliar para iterar de forma segura
     indices_auxiliar_a_iterar = auxiliar_no_conciliado.index.tolist()
     
     # Para cada movimiento no conciliado del libro auxiliar
     for idx_auxiliar in indices_auxiliar_a_iterar:
-        # Aseguramos que la fila todavía exista en el auxiliar no conciliado
+        # Si la fila ha sido movida por algún otro proceso (poco probable aquí), saltar
         if idx_auxiliar not in auxiliar_no_conciliado.index:
             continue
             
         fila_auxiliar = auxiliar_no_conciliado.loc[idx_auxiliar]
 
-        # Buscar combinaciones en el extracto
+        # Buscar combinaciones en el extracto (con filtro de signo incluido)
         indices_combinacion = encontrar_combinaciones(
             extracto_no_conciliado, 
             fila_auxiliar["monto"],
@@ -800,27 +803,24 @@ def conciliacion_agrupacion_extracto(extracto_df, auxiliar_df, extracto_concilia
         )
         
         if indices_combinacion:
-            # ----------------------------------------------------
-            # CAMBIOS CLAVE: Registrar y ELIMINAR del set de trabajo
-            # ----------------------------------------------------
-            
             # 1. Marcar como conciliados (para el set de retorno)
             nuevos_auxiliar_conciliado.add(idx_auxiliar)
             nuevos_extracto_conciliado.update(indices_combinacion)
             
-            # 2. **ACTUALIZACIÓN CRÍTICA**: Eliminar los índices usados del DataFrame de trabajo.
-            #    Esto evita que el extracto_no_conciliado los considere en la siguiente iteración.
+            # 2. **ACTUALIZACIÓN CRÍTICA (UNICIDAD)**: Eliminar los índices usados del DataFrame de trabajo del extracto.
+            # Esto evita que los registros del extracto se reutilicen en la siguiente iteración del auxiliar.
             extracto_no_conciliado = extracto_no_conciliado.drop(indices_combinacion, errors='ignore')
             
-            # ----------------------------------------------------
+            # 3. **FORMATO DE FECHA**: Aplicar formato de fecha DD/MM/YYYY al registro del auxiliar
+            fecha_auxiliar_str = fila_auxiliar["fecha"].strftime('%d/%m/%Y')
             
-            # Obtener números de movimiento
-            nums_movimiento = extracto_df.loc[list(indices_combinacion), "numero_movimiento"].astype(str).tolist()
+            # 4. Obtener números de movimiento (usamos el extracto_df original para evitar errores)
+            nums_movimiento = extracto_df.loc[indices_combinacion, "numero_movimiento"].astype(str).tolist()
             nums_movimiento = [str(num) for num in nums_movimiento]
             
             # Añadir a resultados - Movimiento del libro auxiliar
             resultados.append({
-                'fecha': fila_auxiliar["fecha"],
+                'fecha': fecha_auxiliar_str,
                 'tercero': fila_auxiliar.get('tercero', ''),
                 'concepto': fila_auxiliar.get("nota", ""),
                 'numero_movimiento': fila_auxiliar.get("numero_movimiento", ""),
@@ -835,9 +835,13 @@ def conciliacion_agrupacion_extracto(extracto_df, auxiliar_df, extracto_concilia
             
             # Añadir a resultados - Cada movimiento del extracto en la combinación
             for idx_ext in indices_combinacion:
-                fila_ext = extracto_df.loc[idx_ext] # Usamos el extracto_df original aquí
+                fila_ext = extracto_df.loc[idx_ext] # Usamos el extracto_df original
+                
+                # Formato de fecha para la línea del extracto
+                fecha_extracto_str = fila_ext["fecha"].strftime('%d/%m/%Y')
+                
                 resultados.append({
-                    'fecha': fila_ext["fecha"],
+                    'fecha': fecha_extracto_str,
                     'tercero': '',
                     'concepto': fila_ext.get("concepto", ""),
                     'numero_movimiento': fila_ext.get("numero_movimiento", ""),
