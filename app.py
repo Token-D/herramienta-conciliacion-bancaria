@@ -12,10 +12,10 @@ def buscar_fila_encabezados(df, columnas_esperadas, max_filas=30):
     """
     Busca la fila que contiene al menos 'fecha' y una columna de monto (monto, debitos o creditos).
     Soporta coincidencia exacta si la variante comienza con un asterisco (*).
-    Retorna solo el índice de la fila (integer).
+    Retorna solo el índice de la fila (integer), o None si no se encuentra.
     """
     
-    # 1. Normalizar variantes, quitando el asterisco para la comparación en algunos casos.
+    # 1. Normalizar variantes a minúsculas.
     columnas_esperadas_lower = {}
     for col, variantes in columnas_esperadas.items():
         columnas_esperadas_lower[col] = [variante.lower() for variante in variantes]
@@ -24,7 +24,6 @@ def buscar_fila_encabezados(df, columnas_esperadas, max_filas=30):
         fila = df.iloc[idx]
         celdas = [str(valor).lower() for valor in fila if pd.notna(valor)]
 
-        # Variables para verificar coincidencias mínimas
         tiene_fecha = False
         tiene_monto = False
 
@@ -32,11 +31,11 @@ def buscar_fila_encabezados(df, columnas_esperadas, max_filas=30):
         def check_match(celda, variantes_esperadas):
             for variante in variantes_esperadas:
                 if variante.startswith('*'):
-                    # Coincidencia Exacta requerida (comparamos con el texto sin el '*')
+                    # Coincidencia EXACTA (comparamos con el texto sin el '*'):
                     if celda == variante[1:]: 
                         return True
                 elif variante in celda:
-                    # Coincidencia parcial (el nombre esperado está contenido en la celda)
+                    # Coincidencia parcial (el nombre esperado está contenido en la celda):
                     return True
             return False
 
@@ -53,8 +52,7 @@ def buscar_fila_encabezados(df, columnas_esperadas, max_filas=30):
 
         # Si encontramos una fila que contiene al menos fecha y monto, la retornamos
         if tiene_fecha and tiene_monto:
-            # CORRECCIÓN CLAVE: Solo retornamos el índice para evitar el ValueError
-            return idx
+            return idx # Retornamos solo el índice, resolviendo el ValueError
 
     # Si no se encuentra encabezado, retornamos None
     return None
