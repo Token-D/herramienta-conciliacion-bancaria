@@ -22,7 +22,8 @@ def buscar_fila_encabezados(df, columnas_esperadas, max_filas=30):
 
     for idx in range(min(max_filas, len(df))):
         fila = df.iloc[idx]
-        celdas = [str(valor).lower() for valor in fila if pd.notna(valor)]
+        # CORRECCIÓN CLAVE: Agregamos .strip() para eliminar espacios en blanco invisibles
+        celdas = [str(valor).strip().lower() for valor in fila if pd.notna(valor)]
 
         tiene_fecha = False
         tiene_monto = False
@@ -1061,7 +1062,7 @@ def realizar_conciliacion(extracto_file, auxiliar_file, mes_conciliacion, invert
     # Definir columnas esperadas
     columnas_esperadas_extracto = {
         "fecha": ["fecha de operación", "fecha", "date", "fecha_operacion", "f. operación", "fecha de sistema"],
-        "monto": ["importe (cop)", "monto", "amount", "importe", "valor total","*valor","*VALOR"],
+        "monto": ["importe (cop)", "monto", "amount", "importe", "valor total","*valor"],
         "concepto": ["concepto", "descripción", "concepto banco", "descripcion", "transacción", "transaccion", "descripción motivo"],
         "numero_movimiento": ["número de movimiento", "numero de movimiento", "movimiento", "no. movimiento", "num", "nro. documento", "documento"],
         "debitos": ["debitos", "débitos", "debe", "cargo", "cargos", "valor débito"],
