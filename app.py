@@ -912,13 +912,14 @@ def aplicar_formato_excel(writer, resultados_df):
     """
     
     # ----------------------------------------------------
-    # CAMBIO CRÍTICO: Asegurar que la columna 'fecha' sea datetime
-    # Esto soluciona el error 'Unknown or unsupported datetime type'
+    # CAMBIO CRÍTICO: Asegurar que la columna 'fecha' sea datetime y que 
+    # interprete el día primero (DD/MM/YYYY) para corregir inconsistencias visuales.
     # ----------------------------------------------------
     try:
         # Intenta convertir la columna 'fecha' al formato datetime de Pandas.
         # Usa errors='coerce' para convertir fechas inválidas a NaT (Not a Time).
-        resultados_df['fecha'] = pd.to_datetime(resultados_df['fecha'], errors='coerce')
+        # Se añade dayfirst=True para forzar la interpretación de fechas como DD/MM/YYYY.
+        resultados_df['fecha'] = pd.to_datetime(resultados_df['fecha'], errors='coerce', dayfirst=True)
     except KeyError:
         # En caso de que la columna 'fecha' no exista, se ignora (aunque es poco probable)
         pass
