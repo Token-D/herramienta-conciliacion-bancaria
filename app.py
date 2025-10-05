@@ -11,21 +11,10 @@ from itertools import combinations
 def buscar_fila_encabezados(df, columnas_esperadas, max_filas=30):
     """
     Busca la fila que contiene al menos 'fecha' y una columna de monto (monto, debitos o creditos).
-    Soporta coincidencia exacta si la variante comienza con un asterisco (*).
+    Otras columnas son opcionales.
     """
-    
-    # Normalizar variantes, quitando el asterisco para la comparación.
-    columnas_esperadas_lower = {}
-    for col, variantes in columnas_esperadas.items():
-        columnas_esperadas_lower[col] = []
-        for variante in variantes:
-            variante_lower = variante.lower()
-            if variante_lower.startswith('*'):
-                # Guardamos la variante con el * si requiere coincidencia exacta.
-                columnas_esperadas_lower[col].append(variante_lower)
-            else:
-                columnas_esperadas_lower[col].append(variante_lower)
-
+    columnas_esperadas_lower = {col: [variante.lower() for variante in variantes] 
+                                for col, variantes in columnas_esperadas.items()}
 
     for idx in range(min(max_filas, len(df))):
         fila = df.iloc[idx]
@@ -37,33 +26,22 @@ def buscar_fila_encabezados(df, columnas_esperadas, max_filas=30):
 
         # Revisar cada celda en la fila
         for celda in celdas:
-            
-            # Función helper para verificar si una celda coincide con las variantes esperadas
-            def check_match(celda, variantes_esperadas):
-                for variante in variantes_esperadas:
-                    if variante.startswith('*'):
-                        # Coincidencia Exacta requerida (quitamos el '*')
-                        if celda == variante[1:]: 
-                            return True
-                    elif variante in celda:
-                        # Coincidencia parcial (el nombre esperado está contenido en la celda)
-                        return True
-                return False
-
             # Verificar 'fecha'
-            if 'fecha' in columnas_esperadas_lower and check_match(celda, columnas_esperadas_lower['fecha']):
+            if 'fecha' in columnas_esperadas_lower and any(variante in celda for variante in columnas_esperadas_lower['fecha']):
                 tiene_fecha = True
-            
             # Verificar columnas de monto (monto, debitos o creditos)
-            if any(col in columnas_esperadas_lower and check_match(celda, columnas_esperadas_lower[col]) 
-                   for col in ['monto', 'debitos', 'creditos']):
+            if 'monto' in columnas_esperadas_lower and any(variante in celda for variante in columnas_esperadas_lower['monto']):
+                tiene_monto = True
+            elif 'debitos' in columnas_esperadas_lower and any(variante in celda for variante in columnas_esperadas_lower['debitos']):
+                tiene_monto = True
+            elif 'creditos' in columnas_esperadas_lower and any(variante in celda for variante in columnas_esperadas_lower['creditos']):
                 tiene_monto = True
 
-        # Si encontramos una fila que contiene al menos fecha y monto, la retornamos
+        # Si se encuentran los mínimos necesarios (fecha y algún monto)
         if tiene_fecha and tiene_monto:
-            return idx, columnas_esperadas_lower
+            return idx
 
-    return None, None
+    return None
     
 # Función para leer datos a partir de la fila de encabezados
 def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, max_filas=30):
