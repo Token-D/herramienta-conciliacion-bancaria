@@ -52,7 +52,7 @@ def buscar_fila_encabezados(df, columnas_esperadas, max_filas=30):
 
         # Si encontramos una fila que contiene al menos fecha y monto, la retornamos
         if tiene_fecha and tiene_monto:
-            return idx # Retornamos solo el índice, resolviendo el ValueError
+            return idx # ¡Esta línea resuelve el error de Pandas!
 
     # Si no se encuentra encabezado, retornamos None
     return None
