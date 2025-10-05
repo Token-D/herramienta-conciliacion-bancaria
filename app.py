@@ -1077,11 +1077,10 @@ def mapear_columnas_bancolombia():
     """
     return {
         # Nota: Usamos solo 'fecha' para coincidencia exacta
-        'fecha': ['*fecha'], 
-        'descripcion': ['*descripción', '*concepto', 'observaciones'],
+        'fecha': ['fecha'], 
+        'concepto': ['*descripción'],
         # Nota: Usamos solo 'valor' o 'monto' para coincidencia exacta
-        'monto': ['*valor', '*monto', '*importe (cop)', '*importe'], 
-        'referencia': ['documento', 'número de movimiento', 'referencia', 'codigo', '*dcto']
+        'monto': ['valor']
     }
 
 # --- 2. FUNCIÓN CONTROLADORA PARA OBTENER LAS COLUMNAS DEL EXTRACTO ---
