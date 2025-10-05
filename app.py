@@ -8,47 +8,36 @@ from collections import Counter
 from itertools import combinations
 
 # Función para buscar la fila de encabezados
-def buscar_fila_encabezados(df, columnas_esperadas, max_filas=30, banco=None): # <--- Nuevo parámetro 'banco'
+def buscar_fila_encabezados(df, columnas_esperadas, max_filas=30):
     """
     Busca la fila que contiene al menos 'fecha' y una columna de monto (monto, debitos o creditos).
-    Si el 'banco' es 'bancolombia', se busca el encabezado 'valor' y se verifica la Columna 5.
+    Soporta coincidencia exacta si la variante comienza con un asterisco (*).
     Retorna solo el índice de la fila (integer), o None si no se encuentra.
     """
     
-    # 1. Normalizar variantes a minúsculas y limpiar caracteres
+    # 1. Normalizar variantes a minúsculas.
     columnas_esperadas_lower = {}
     for col, variantes in columnas_esperadas.items():
-        # Limpiamos variantes, quitando espacios dobles y caracteres no alfanuméricos simples
-        columnas_esperadas_lower[col] = [re.sub(r'[^a-z0-9 ]', '', variante.lower()).strip() for variante in variantes]
-
-    # Verificar si es Bancolombia para la lógica condicional
-    es_bancolombia = banco and 'bancolombia' in banco.lower()
-
-    # Definir variantes de monto a buscar, combinando todos los grupos base
-    monto_variants_to_search = set()
-    for col in ['monto', 'debito', 'credito']:
-        if col in columnas_esperadas_lower:
-            monto_variants_to_search.update(columnas_esperadas_lower[col])
-            
-    # Lógica condicional: Si es Bancolombia, agregamos 'valor' SIN asterisco (búsqueda parcial)
-    if es_bancolombia:
-        # Añadimos 'valor' como variante de monto
-        monto_variants_to_search.add('valor')
-    
-    monto_variants_to_search = list(monto_variants_to_search)
-
+        columnas_esperadas_lower[col] = [variante.lower() for variante in variantes]
 
     for idx in range(min(max_filas, len(df))):
         fila = df.iloc[idx]
-        # Limpiamos y normalizamos celdas de la fila: a minúsculas, sin NaN, limpiando
-        celdas = [re.sub(r'[^a-z0-9 ]', '', str(valor).lower()).strip() for valor in fila if pd.notna(valor)]
+        celdas = [str(valor).lower() for valor in fila if pd.notna(valor)]
 
         tiene_fecha = False
         tiene_monto = False
 
-        # Función helper para verificar la coincidencia (si la variante está contenida en la celda)
+        # 2. Función helper para verificar la coincidencia (Exacta vs Parcial)
         def check_match(celda, variantes_esperadas):
-            return any(variante in celda for variante in variantes_esperadas)
+            for variante in variantes_esperadas:
+                if variante.startswith('*'):
+                    # Coincidencia EXACTA (comparamos con el texto sin el '*'):
+                    if celda == variante[1:]: 
+                        return True
+                elif variante in celda:
+                    # Coincidencia parcial (el nombre esperado está contenido en la celda):
+                    return True
+            return False
 
         # 3. Revisar cada celda en la fila
         for celda in celdas:
@@ -56,26 +45,14 @@ def buscar_fila_encabezados(df, columnas_esperadas, max_filas=30, banco=None): #
             if 'fecha' in columnas_esperadas_lower and check_match(celda, columnas_esperadas_lower['fecha']):
                 tiene_fecha = True
             
-            # Verificar columnas de monto (usando el conjunto combinado de variantes)
-            if check_match(celda, monto_variants_to_search):
+            # Verificar columnas de monto (monto, debitos o creditos)
+            if any(col in columnas_esperadas_lower and check_match(celda, columnas_esperadas_lower[col]) 
+                   for col in ['monto', 'debitos', 'creditos']):
                 tiene_monto = True
-        
-        # LÓGICA DE BANCOLOMBIA ADICIONAL: Si es Bancolombia y tiene fecha, pero no encuentra monto por nombre
-        # y la columna 5 (índice 4) tiene texto, asumimos que esa es la columna de Valor.
-        if es_bancolombia and tiene_fecha and not tiene_monto:
-            if len(df.columns) > 4:
-                # Comprobamos la celda de la Columna 5 (índice 4) en la fila actual
-                celda_columna_5 = str(df.iloc[idx, 4]).strip().lower()
-                
-                # Para ser seguros, verificamos si esa celda de la Columna 5 contiene 'valor'
-                # o si simplemente no está vacía (si el archivo es inconsistente y solo el dato es monto)
-                if 'valor' in celda_columna_5 or len(celda_columna_5) > 1:
-                    tiene_monto = True
-                    # st.info(f"Asumiendo Columna 5 ('{celda_columna_5}') como Monto debido a la detección de Bancolombia.")
 
         # Si encontramos una fila que contiene al menos fecha y monto, la retornamos
         if tiene_fecha and tiene_monto:
-            return idx 
+            return idx # Retornamos solo el índice, resolviendo el ValueError
 
     # Si no se encuentra encabezado, retornamos None
     return None
