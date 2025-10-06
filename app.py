@@ -1239,27 +1239,14 @@ if extracto_file and auxiliar_file:
 
         # Generar Excel
         def generar_excel(resultados_df):
-            # 1. Copia del DF para modificar sin afectar el original
-    df_para_excel = resultados_df.copy()
-
-    # 2. Rellenar NaN en la columna 'monto' con 0.0
-    # Forzamos a numérico antes de rellenar, en caso de que Pandas haya inferido otro tipo
-          if 'monto' in df_para_excel.columns:
-        df_para_excel['monto'] = pd.to_numeric(df_para_excel['monto'], errors='coerce').fillna(0.0)
-    
-    # 3. Rellenar otros NaN que podrían estar en columnas de texto con cadena vacía
-        df_para_excel = df_para_excel.fillna('')
-
-        output = BytesIO()
-    # Asegúrate de que aplicar_formato_excel está definida en tu código
-        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-        # Usamos el DF ya limpio
-            df_para_excel.to_excel(writer, sheet_name="Resultados", index=False)
-        # Asume que aplicar_formato_excel toma el 'writer' y el 'df'
-        # Si tu función aplicar_formato_excel usa el DF original, puede necesitar ser actualizada también.
-            aplicar_formato_excel(writer, df_para_excel)
-        output.seek(0)
-        return output
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+        # 1. Escritura directa del DF de resultados
+        resultados_df.to_excel(writer, sheet_name="Resultados", index=False)
+        # 2. Aplicación de formato
+        aplicar_formato_excel(writer, resultados_df)
+    output.seek(0)
+    return output
 
         excel_data = generar_excel(resultados_df)
         st.download_button(
