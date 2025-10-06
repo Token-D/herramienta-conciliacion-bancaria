@@ -145,20 +145,50 @@ def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, ma
     
     return df
 
-
-
 def normalizar_dataframe(df, columnas_esperadas, banco_seleccionado="Generico"):
-    # ... (código anterior de renombrado y limpieza de columnas) ...
-
+    """
+    Normaliza un DataFrame para que use los nombres de columnas esperados y 
+    elimina filas con 'fecha' o 'monto' vacíos, y filas con 'monto' igual a cero.
+    """
+    
+    # Convertir los nombres de las columnas del DataFrame a minúsculas
+    df.columns = [str(col).lower().strip() for col in df.columns]
+    
+    # Crear un mapeo de nombres de columnas basado en las variantes
+    mapeo_columnas = {}
+    for col_esperada, variantes in columnas_esperadas.items():
+        for variante in variantes:
+            variante_lower = variante.lower().strip()
+            mapeo_columnas[variante_lower] = col_esperada
+    
+    # Renombrar las columnas según el mapeo
+    # 🎯 ESTA INICIALIZACIÓN ES CRÍTICA PARA EVITAR EL NAMERROR
+    nuevo_nombres = [] 
+    columnas_vistas = set()
+    
+    for col in df.columns:
+        # Verificar coincidencias aproximadas
+        col_encontrada = False
+        for variante, nombre_esperado in mapeo_columnas.items():
+            if variante in col:
+                if nombre_esperado not in columnas_vistas:
+                    nuevo_nombres.append(nombre_esperado)
+                    columnas_vistas.add(nombre_esperado)
+                    col_encontrada = True
+                    break
+        
+        if not col_encontrada:
+            nuevo_nombres.append(col)
+    
     # Asignar los nuevos nombres de columnas
     df.columns = nuevo_nombres
     
     # Eliminar columnas duplicadas después de renombrar
     df = df.loc[:, ~df.columns.duplicated(keep='first')]
 
-    # ------------------------------------------------------------------
-    ## Lógica 1: Eliminar Registros Vacíos en 'fecha' o 'monto' (YA EXISTENTE)
-    # ... (tu código existente para dropna) ...
+    # --- Lógica de Limpieza de Registros ---
+    
+    # 1. Eliminar Registros Vacíos en 'fecha' o 'monto'
     columnas_a_verificar = []
     if 'fecha' in df.columns:
         columnas_a_verificar.append('fecha')
@@ -168,59 +198,35 @@ def normalizar_dataframe(df, columnas_esperadas, banco_seleccionado="Generico"):
     if columnas_a_verificar:
         # Elimina filas donde CUALQUIERA de las columnas en 'subset' tenga un valor nulo.
         df.dropna(subset=columnas_a_verificar, inplace=True) 
-    # ------------------------------------------------------------------
     
-    # ------------------------------------------------------------------
-    ## Lógica 2: Eliminar Registros donde 'monto' sea CERO (NUEVA REGLA)
-    # Esto elimina los registros que, tras la conversión en procesar_montos, 
-    # resultaron en un valor numérico de 0.0 (debido a errores de lectura o formato inválido).
-    if 'monto' in df.columns:
-        filas_antes_cero = len(df)
-        
-        # Filtra para mantener solo las filas donde el valor absoluto del monto es diferente de 0.
-        # Es importante usar el valor absoluto (abs) para manejar -0.0 correctamente si fuera el caso, 
-        # aunque en pandas el 0 es 0.
+    # 2. Eliminar Registros donde 'monto' sea CERO (Regla solicitada)
+    if 'monto' in df.columns and not df.empty:
+        # Filtra para mantener solo las filas donde el valor absoluto del monto es DIFERENTE de 0.
+        # Esto elimina los registros que, tras la conversión, resultaron numéricamente en 0.
         df = df[df['monto'].abs() != 0]
-        
-        filas_despues_cero = len(df)
-        
-        # Opcional: Agregar una notificación si usas Streamlit (st)
-        # if 'st' in globals():
-        #    st.info(f"Se eliminaron {filas_antes_cero - filas_despues_cero} filas con Monto igual a cero.")
 
-    # ------------------------------------------------------------------
-    
-    # Si no se encontró 'numero_movimiento', crearlo vacío/generarlo
-    # ... (código para 'numero_movimiento' y lógica específica de banco) ...
+    # --- Fin Lógica de Limpieza ---
     
     # Si no se encontró 'numero_movimiento', crearlo vacío/generarlo
     if 'numero_movimiento' not in df.columns:
         if banco_seleccionado == "Bancolombia":
-            # Caso Bancolombia: Queda vacío (tal como lo solicitaste)
             df['numero_movimiento'] = ''
         else:
-            # Caso Demás Bancos: Genera el ID único 'DOC_' + índice.
             df['numero_movimiento'] = 'DOC_' + df.index.astype(str)  
 
-    # Lógica Específica por Banco
+    # Lógica Específica por Banco (Davivienda)
     if banco_seleccionado == "Davivienda":
-        # ... (Lógica de Davivienda) ...
-        # Primero, buscamos la columna original 'Transacción'
+        # ... (tu lógica de Davivienda simplificada) ...
         col_transaccion = next((col for col in df.columns if 'transacción' in col.lower()), None)
         
-        # Asumimos que 'Descripción motivo' se mapeó a 'concepto'
-        if col_transaccion and 'concepto' in df.columns:
-            # Concatenar la Transacción a la Descripción motivo (columna 'concepto')
-            if not df.empty:
-                 df['concepto'] = df['concepto'].astype(str) + " (" + df[col_transaccion].astype(str) + ")"
+        if col_transaccion and 'concepto' in df.columns and not df.empty:
+            df['concepto'] = df['concepto'].astype(str) + " (" + df[col_transaccion].astype(str) + ")"
         
-        # Eliminar la columna 'Valor Cheque' si existe y es inútil (solo en Davivienda)
         col_valor_cheque = next((col for col in df.columns if 'valor cheque' in col.lower()), None)
         if col_valor_cheque:
             df = df.drop(columns=[col_valor_cheque], errors='ignore')
 
     if 'numero_movimiento' not in df.columns:
-        # Crea un identificador único. Si 'Documento' existía, se debe haber renombrado antes.
         df['numero_movimiento'] = 'DOC_' + df.index.astype(str)      
     
     return df
