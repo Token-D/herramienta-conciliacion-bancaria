@@ -1214,14 +1214,10 @@ if extracto_file and auxiliar_file:
 
         # Generar Excel
         def generar_excel(resultados_df):
-            df_para_excel = resultados_df.copy()
-             if 'monto' in df_para_excel.columns:
-                 df_para_excel['monto'] = pd.to_numeric(df_para_excel['monto'], errors='coerce').fillna(0.0)
-                 df_para_excel = df_para_excel.fillna('')
             output = BytesIO()
             with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-                df_para_excel.to_excel(writer, sheet_name="Resultados", index=False)
-                aplicar_formato_excel(writer, df_para_excel)
+                resultados_df.to_excel(writer, sheet_name="Resultados", index=False)
+                aplicar_formato_excel(writer, resultados_df)
             output.seek(0)
             return output
 
