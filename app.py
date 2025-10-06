@@ -188,7 +188,7 @@ def normalizar_dataframe(df, columnas_esperadas,banco_seleccionado="Generico"):
         if banco_seleccionado == "Bancolombia":
             df['numero_movimiento'] = ''
         else:
-        df['numero_movimiento'] = '' + df.index.astype(str)
+        df['numero_movimiento'] = 'DOC_' + df.index.astype(str)
         # Opcionalmente, podrías usar una columna de conceptos si es más útil:
         # df['numero_movimiento'] = df.get('concepto', '').fillna('').astype(str).str.slice(0, 50) 
 
