@@ -8,62 +8,36 @@ from collections import Counter
 from itertools import combinations
 
 # Función para buscar la fila de encabezados
-def buscar_fila_encabezados(df, columnas_esperadas, max_filas=30, banco=None):
+def buscar_fila_encabezados(df, columnas_esperadas, max_filas=30):
     """
     Busca la fila que contiene al menos 'fecha' y una columna de monto (monto, debitos o creditos).
-    Si el parámetro 'banco' es Bancolombia, fuerza la coincidencia exacta de los encabezados.
-    Retorna solo el índice de la fila (integer), o None si no se encuentra.
+    Otras columnas son opcionales.
     """
-    
-    # 1. Determinar si estamos buscando un extracto de Bancolombia
-    es_bancolombia = banco and 'bancolombia' in banco.lower()
-    
-    # 2. Normalizar variantes a minúsculas y construir la lista de variantes de monto mínima
-    columnas_esperadas_lower = {}
-    monto_variants_to_search = set()
-    
-    for col, variantes in columnas_esperadas.items():
-        lower_variantes = [variante.lower() for variante in variantes]
-        columnas_esperadas_lower[col] = lower_variantes
-        if col in ['monto', 'debitos', 'creditos']:
-            # Añadir todas las variantes de monto a la lista de búsqueda mínima
-            monto_variants_to_search.update(lower_variantes)
-
-    monto_variants_to_search = list(monto_variants_to_search)
-
-    # 3. Función helper para verificar la coincidencia (Exacta vs Parcial)
-    def check_match(celda, variantes_esperadas, es_bancolombia_check):
-        celda = str(celda).strip().lower()
-        for variante in variantes_esperadas:
-            if es_bancolombia_check:
-                # Si es Bancolombia, solo buscamos coincidencia EXACTA
-                if celda == variante:
-                    return True
-            else:
-                # Para otros bancos, buscamos coincidencia PARCIAL
-                if variante in celda:
-                    return True
-        return False
+    columnas_esperadas_lower = {col: [variante.lower() for variante in variantes] 
+                                for col, variantes in columnas_esperadas.items()}
 
     for idx in range(min(max_filas, len(df))):
         fila = df.iloc[idx]
-        # Limpiar y convertir a minúsculas todas las celdas de la fila
-        celdas = [str(valor).strip().lower() for valor in fila if pd.notna(valor)]
+        celdas = [str(valor).lower() for valor in fila if pd.notna(valor)]
 
+        # Variables para verificar coincidencias mínimas
         tiene_fecha = False
         tiene_monto = False
 
-        # 4. BÚSQUEDA DIRECTA DE ENCABEZADOS
+        # Revisar cada celda en la fila
         for celda in celdas:
             # Verificar 'fecha'
-            if 'fecha' in columnas_esperadas_lower and check_match(celda, columnas_esperadas_lower['fecha'], es_bancolombia):
+            if 'fecha' in columnas_esperadas_lower and any(variante in celda for variante in columnas_esperadas_lower['fecha']):
                 tiene_fecha = True
-            
             # Verificar columnas de monto (monto, debitos o creditos)
-            if check_match(celda, monto_variants_to_search, es_bancolombia):
+            if 'monto' in columnas_esperadas_lower and any(variante in celda for variante in columnas_esperadas_lower['monto']):
+                tiene_monto = True
+            elif 'debitos' in columnas_esperadas_lower and any(variante in celda for variante in columnas_esperadas_lower['debitos']):
+                tiene_monto = True
+            elif 'creditos' in columnas_esperadas_lower and any(variante in celda for variante in columnas_esperadas_lower['creditos']):
                 tiene_monto = True
 
-        # 5. Si encontramos ambos requisitos, retornamos el índice de la fila.
+        # Si se encuentran los mínimos necesarios (fecha y algún monto)
         if tiene_fecha and tiene_monto:
             return idx
 
@@ -1069,37 +1043,9 @@ if auxiliar_file:
 if 'invertir_signos' not in st.session_state:
     st.session_state.invertir_signos = False
 
-def mapear_columnas_bancolombia():
-    """
-    Retorna las reglas de mapeo específicas para el extracto de Bancolombia.
-    Usamos '*' para forzar la coincidencia exacta de la palabra clave, 
-    como 'FECHA' y 'VALOR'.
-    """
-    return {
-        # Nota: Usamos solo 'fecha' para coincidencia exacta
-        'fecha': ['fecha'], 
-        'concepto': ['*descripción'],
-        # Nota: Usamos solo 'valor' o 'monto' para coincidencia exacta
-        'monto': ['valor']
-    }
-
-# --- 2. FUNCIÓN CONTROLADORA PARA OBTENER LAS COLUMNAS DEL EXTRACTO ---
-
-def obtener_columnas_extracto(banco_seleccionado, columnas_generales):
-    """
-    Decide qué diccionario de columnas esperadas usar para el Extracto
-    basado en el banco seleccionado por el usuario.
-    """
-    # Si el banco seleccionado es Bancolombia, usa las reglas específicas
-    if banco_seleccionado and 'bancolombia' in banco_seleccionado.lower():
-        return mapear_columnas_bancolombia()
-    
-    # Para cualquier otro banco, usa las reglas generales
-    return columnas_generales
-
 def realizar_conciliacion(extracto_file, auxiliar_file, mes_conciliacion, invertir_signos, banco_seleccionado):
     # Definir columnas esperadas
-    COLUMNAS_ESPERADAS_EXTRACTO_GENERAL = {
+    columnas_esperadas_extracto = {
         "fecha": ["fecha de operación", "fecha", "date", "fecha_operacion", "f. operación", "fecha de sistema"],
         "monto": ["importe (cop)", "monto", "amount", "importe", "valor total"],
         "concepto": ["concepto", "descripción", "concepto banco", "descripcion", "transacción", "transaccion", "descripción motivo"],
@@ -1107,8 +1053,8 @@ def realizar_conciliacion(extracto_file, auxiliar_file, mes_conciliacion, invert
         "debitos": ["debitos", "débitos", "debe", "cargo", "cargos", "valor débito"],
         "creditos": ["creditos", "créditos", "haber", "abono", "abonos", "valor crédito"]
     }
-    # Mantener la definición general para el Auxiliar, ya que no necesita lógica condicional
-    COLUMNAS_ESPERADAS_AUXILIAR_GENERAL = {
+
+    columnas_esperadas_auxiliar = {
         "fecha": ["fecha", "date", "fecha de operación", "fecha_operacion", "f. operación"],
         "debitos": ["debitos", "débitos", "debe", "cargo", "cargos", "valor débito"],
         "creditos": ["creditos", "créditos", "haber", "abono", "abonos", "valor crédito"],
@@ -1116,19 +1062,6 @@ def realizar_conciliacion(extracto_file, auxiliar_file, mes_conciliacion, invert
         "numero_movimiento": ["doc num", "doc. num", "documento", "número documento", "numero documento", "nro. documento"],
         "tercero": ["tercero", "Tercero", "proveedor"]
     }
-
-    # LÓGICA CLAVE PARA EL EXTRACTO (Dinámica)
-    columnas_extracto = obtener_columnas_extracto(banco_seleccionado, COLUMNAS_ESPERADAS_EXTRACTO_GENERAL)
-    
-    # LÓGICA PARA EL AUXILIAR (Fija)
-    columnas_auxiliar = COLUMNAS_ESPERADAS_AUXILIAR_GENERAL
-    
-    # Ahora llamarías a tus funciones de lectura/búsqueda con estas variables
-    # df_extracto_raw = leer_archivo_excel_o_csv(extracto_file, columnas_extracto, banco=banco_seleccionado)
-    # df_auxiliar_raw = leer_archivo_excel_o_csv(auxiliar_file, columnas_auxiliar) # Usando las columnas generales
-    # ...
-    
-    return columnas_extracto, columnas_auxiliar
 
     # Leer datos
     extracto_df = leer_datos_desde_encabezados(extracto_file, columnas_esperadas_extracto, "Extracto Bancario")
