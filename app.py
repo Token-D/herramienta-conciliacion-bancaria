@@ -8,13 +8,40 @@ from collections import Counter
 from itertools import combinations
 
 # Función para buscar la fila de encabezados
-def buscar_fila_encabezados(df, columnas_esperadas, max_filas=30):
+def buscar_fila_encabezados(df, columnas_esperadas, max_filas=30, banco_seleccionado="Generico"):
     """
     Busca la fila que contiene al menos 'fecha' y una columna de monto (monto, debitos o creditos).
     Otras columnas son opcionales.
     """
-    columnas_esperadas_lower = {col: [variante.lower() for variante in variantes] 
-                                for col, variantes in columnas_esperadas.items()}
+    columnas_esperadas_lower = {col: [variante.lower().strip() for variante in variantes] 
+                               for col, variantes in columnas_esperadas.items()}
+
+    # Los campos esperados son: "fecha", "valor", "descripción"
+    campos_bancolombia = [
+        "fecha", 
+        "valor", 
+        "descripción"
+    ]
+    
+    # Condición de Bancolombia: Coincidencia exacta de los 3 campos.
+
+    es_bancolombia_extracto = (banco_seleccionado == "Bancolombia")
+
+    if es_bancolombia_extracto:
+        for idx in range(min(max_filas, len(df))):
+            fila = df.iloc[idx]
+            # Convertir celdas a minúsculas, SIN espacios (strip) para COINCIDENCIA EXACTA
+            celdas_fila = {str(valor).lower().strip() for valor in fila if pd.notna(valor)}
+            
+            # Verificar si TODOS los campos obligatorios están EXACTAMENTE en las celdas de la fila
+            if all(campo in celdas_fila for campo in campos_bancolombia):
+                # Se encontraron los encabezados exactos para Bancolombia
+                return idx
+        
+        # Si no se encuentra con la coincidencia exacta de Bancolombia, continúa con la lógica general
+        # o devuelve None si quieres ser estricto. Por seguridad, devolvemos None si no se encuentra 
+        # para forzar al usuario a revisar el archivo.
+        return None 
 
     for idx in range(min(max_filas, len(df))):
         fila = df.iloc[idx]
@@ -24,7 +51,7 @@ def buscar_fila_encabezados(df, columnas_esperadas, max_filas=30):
         tiene_fecha = False
         tiene_monto = False
 
-        # Revisar cada celda en la fila
+       # Revisar cada celda en la fila
         for celda in celdas:
             # Verificar 'fecha'
             if 'fecha' in columnas_esperadas_lower and any(variante in celda for variante in columnas_esperadas_lower['fecha']):
@@ -73,7 +100,7 @@ def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, ma
     total_filas_inicial = len(df)
     
     # Buscar la fila de encabezados
-    fila_encabezados = buscar_fila_encabezados(df, columnas_esperadas, max_filas)
+    fila_encabezados = buscar_fila_encabezados(df, columnas_esperadas, max_filas, banco_seleccionado)
     if fila_encabezados is None:
         st.error(f"No se encontraron los encabezados necesarios en el archivo {nombre_archivo}.")
         st.error(f"Se buscaron en las primeras {max_filas} filas. Se requieren al menos 'fecha' y una columna de monto (monto, debitos o creditos).")
@@ -100,7 +127,7 @@ def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, ma
         filas_despues = len(df)
     
     # Normalizar las columnas
-    df = normalizar_dataframe(df, columnas_esperadas)
+    df = normalizar_dataframe(df, columnas_esperadas, banco_seleccionado)
     
     # Verificar si el DataFrame tiene al menos las columnas mínimas necesarias
     if 'fecha' not in df.columns:
@@ -118,7 +145,7 @@ def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, ma
     return df
 
 # Función para normalizar un DataFrame
-def normalizar_dataframe(df, columnas_esperadas):
+def normalizar_dataframe(df, columnas_esperadas,banco_seleccionado="Generico"):
     """
     Normaliza un DataFrame para que use los nombres de columnas esperados.
     """
@@ -158,9 +185,10 @@ def normalizar_dataframe(df, columnas_esperadas):
     
     # Si no se encontró 'numero_movimiento', crearlo vacío para evitar KeyErrors posteriores
     if 'numero_movimiento' not in df.columns:
-        # Crea la columna con una cadena vacía o un valor único, dependiendo de lo que esperes
-        # Usaremos el índice para garantizar un identificador único en caso de ser necesario.
-        df['numero_movimiento'] = 'DOC_' + df.index.astype(str)
+        if banco_seleccionado == "Bancolombia":
+            df['numero_movimiento'] = ''
+        else:
+        df['numero_movimiento'] = '' + df.index.astype(str)
         # Opcionalmente, podrías usar una columna de conceptos si es más útil:
         # df['numero_movimiento'] = df.get('concepto', '').fillna('').astype(str).str.slice(0, 50) 
 
@@ -1045,15 +1073,26 @@ if 'invertir_signos' not in st.session_state:
 
 def realizar_conciliacion(extracto_file, auxiliar_file, mes_conciliacion, invertir_signos, banco_seleccionado):
     # Definir columnas esperadas
-    columnas_esperadas_extracto = {
-        "fecha": ["fecha de operación", "fecha", "date", "fecha_operacion", "f. operación", "fecha de sistema"],
-        "monto": ["importe (cop)", "monto", "amount", "importe", "valor total"],
-        "concepto": ["concepto", "descripción", "concepto banco", "descripcion", "transacción", "transaccion", "descripción motivo"],
-        "numero_movimiento": ["número de movimiento", "numero de movimiento", "movimiento", "no. movimiento", "num", "nro. documento", "documento"],
-        "debitos": ["debitos", "débitos", "debe", "cargo", "cargos", "valor débito"],
-        "creditos": ["creditos", "créditos", "haber", "abono", "abonos", "valor crédito"]
-    }
-
+    if banco_seleccionado == "Bancolombia":
+        # Columnas específicas para el extracto de Bancolombia (Coincidencia exacta: fecha, valor, descripción)
+        # El campo 'numero_movimiento' se deja con una lista vacía de variantes para que se genere vacío/único.
+        columnas_esperadas_extracto = {
+            "fecha": ["fecha"],
+            "monto": ["valor"],
+            "concepto": ["descripción"],
+            "numero_movimiento": [] # No se esperan variantes, por lo que quedará vacío
+        }
+    else:
+        # Columnas genéricas para los demás bancos (BTA, BBVA, Davivienda, etc.)
+        # Estas son las columnas que ya tenías definidas.
+        columnas_esperadas_extracto = {
+            "fecha": ["fecha de operación", "fecha", "date", "fecha_operacion", "f. operación", "fecha de sistema"],
+            "monto": ["importe (cop)", "monto", "amount", "importe", "valor total"],
+            "concepto": ["concepto", "descripción", "concepto banco", "descripcion", "transacción", "transaccion", "descripción motivo"],
+            "numero_movimiento": ["número de movimiento", "numero de movimiento", "movimiento", "no. movimiento", "num", "nro. documento", "documento"],
+            "debitos": ["debitos", "débitos", "debe", "cargo", "cargos", "valor débito"],
+            "creditos": ["creditos", "créditos", "haber", "abono", "abonos", "valor crédito"]
+        }
     columnas_esperadas_auxiliar = {
         "fecha": ["fecha", "date", "fecha de operación", "fecha_operacion", "f. operación"],
         "debitos": ["debitos", "débitos", "debe", "cargo", "cargos", "valor débito"],
@@ -1064,8 +1103,8 @@ def realizar_conciliacion(extracto_file, auxiliar_file, mes_conciliacion, invert
     }
 
     # Leer datos
-    extracto_df = leer_datos_desde_encabezados(extracto_file, columnas_esperadas_extracto, "Extracto Bancario")
-    auxiliar_df = leer_datos_desde_encabezados(auxiliar_file, columnas_esperadas_auxiliar, "Libro Auxiliar")
+    extracto_df = leer_datos_desde_encabezados(extracto_file, columnas_esperadas_extracto, "Extracto Bancario", banco_seleccionado=banco_seleccionado)
+    auxiliar_df = leer_datos_desde_encabezados(auxiliar_file, columnas_esperadas_auxiliar, "Libro Auxiliar",banco_seleccionado="Generico")
 
     # Procesar montos
     auxiliar_df = procesar_montos(auxiliar_df, "Libro Auxiliar", es_extracto=False, banco_seleccionado="Generico")
