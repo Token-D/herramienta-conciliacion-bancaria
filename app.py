@@ -399,8 +399,6 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
 
     return df
     
-# Función para procesar los montos
-# Función para procesar los montos (VERSIÓN CON BANCO SELECCIONADO)
 def procesar_montos(df, nombre_archivo, es_extracto=False, invertir_signos=False, banco_seleccionado="Generico"):
     """
     Procesa columnas de débitos y créditos para crear una columna 'monto' unificada,
@@ -411,18 +409,22 @@ def procesar_montos(df, nombre_archivo, es_extracto=False, invertir_signos=False
 
     # --- Función auxiliar de limpieza robusta (latino) ---
     def limpiar_monto_latino(series):
-        # Esta función está diseñada para manejar formatos como 1.234,56 o 1,234.56
+        # Esta función está diseñada para manejar formatos como 1.234,56 o 1,234.56 y preservar el signo negativo.
         series_str = series.astype(str).str.strip()
         
-        # Eliminar cualquier caracter que no sea dígito, punto o coma (excepto el signo - al inicio)
-        series_str = series_str.str.replace(r'([,\.])(\-)', r'\2\1', regex=True 
+        # 1. Quitar caracteres no válidos, PERMITIENDO EL SIGNO NEGATIVO solo al inicio.
+        # Primero, aseguramos que el signo negativo se separe y se mantenga:
+        series_str = series_str.str.replace(r'([,\.])(\-)', r'\2\1', regex=True)
+        
+        # 2. Eliminar cualquier caracter que no sea dígito, punto, coma o signo negativo.
+        # Importante: Esto limpia el valor sin eliminar el signo si existe.
         series_str = series_str.str.replace(r'[^\d\.\,\-]', '', regex=True)
 
-        # Para el formato Colombiano (coma=miles, punto=decimales):
-        # 1. Quitar separador de miles (coma)
+        # 3. Para el formato Colombiano (coma=miles, punto=decimales):
+        # Quitar separador de miles (coma) para que Pandas solo vea el punto decimal.
         series_str = series_str.str.replace(',', '', regex=False) 
         
-        # 2. Convertir a numérico (el punto decimal se respeta)
+        # 4. Convertir a numérico (el punto decimal se respeta)
         return pd.to_numeric(series_str, errors='coerce')
 
     # ---------------------------------------------------
