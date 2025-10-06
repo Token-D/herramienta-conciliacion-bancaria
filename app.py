@@ -415,7 +415,8 @@ def procesar_montos(df, nombre_archivo, es_extracto=False, invertir_signos=False
         series_str = series.astype(str).str.strip()
         
         # Eliminar cualquier caracter que no sea dígito, punto o coma (excepto el signo - al inicio)
-        series_str = series_str.str.replace(r'^[^\d\.\,]+', '', regex=True) 
+        series_str = series_str.str.replace(r'([,\.])(\-)', r'\2\1', regex=True 
+        series_str = series_str.str.replace(r'[^\d\.\,\-]', '', regex=True)
 
         # Para el formato Colombiano (coma=miles, punto=decimales):
         # 1. Quitar separador de miles (coma)
