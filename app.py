@@ -148,9 +148,8 @@ def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, ma
 def normalizar_dataframe(df, columnas_esperadas, banco_seleccionado="Generico"):
     """
     Normaliza un DataFrame para que use los nombres de columnas esperados y 
-    elimina filas con 'fecha' o 'monto' vacíos, y filas con 'monto' igual a cero.
+    elimina filas con 'fecha' o 'monto' vacíos.
     """
-    
     # Convertir los nombres de las columnas del DataFrame a minúsculas
     df.columns = [str(col).lower().strip() for col in df.columns]
     
@@ -162,8 +161,7 @@ def normalizar_dataframe(df, columnas_esperadas, banco_seleccionado="Generico"):
             mapeo_columnas[variante_lower] = col_esperada
     
     # Renombrar las columnas según el mapeo
-    # 🎯 ESTA INICIALIZACIÓN ES CRÍTICA PARA EVITAR EL NAMERROR
-    nuevo_nombres = [] 
+    nuevo_nombres = []
     columnas_vistas = set()
     
     for col in df.columns:
@@ -186,9 +184,10 @@ def normalizar_dataframe(df, columnas_esperadas, banco_seleccionado="Generico"):
     # Eliminar columnas duplicadas después de renombrar
     df = df.loc[:, ~df.columns.duplicated(keep='first')]
 
-    # --- Lógica de Limpieza de Registros ---
+    # ------------------------------------------------------------------
+    ## Lógica para Eliminar Registros Vacíos en 'fecha' o 'monto'
+    # Las columnas clave que siempre deben existir y no estar vacías son 'fecha' y 'monto'.
     
-    # 1. Eliminar Registros Vacíos en 'fecha' o 'monto'
     columnas_a_verificar = []
     if 'fecha' in df.columns:
         columnas_a_verificar.append('fecha')
@@ -196,40 +195,50 @@ def normalizar_dataframe(df, columnas_esperadas, banco_seleccionado="Generico"):
         columnas_a_verificar.append('monto')
     
     if columnas_a_verificar:
-        # Elimina filas donde CUALQUIERA de las columnas en 'subset' tenga un valor nulo.
+        # Usamos dropna para eliminar filas donde CUALQUIERA de las columnas 
+        # en 'subset' tenga un valor nulo (NaN, None, etc.).
         df.dropna(subset=columnas_a_verificar, inplace=True) 
-    
-    # 2. Eliminar Registros donde 'monto' sea CERO (Regla solicitada)
-    if 'monto' in df.columns and not df.empty:
-        # Filtra para mantener solo las filas donde el valor absoluto del monto es DIFERENTE de 0.
-        # Esto elimina los registros que, tras la conversión, resultaron numéricamente en 0.
-        df = df[df['monto'].abs() != 0]
-
-    # --- Fin Lógica de Limpieza ---
+        
+        # Opcional: Para ser más riguroso, podrías querer convertir el monto a numérico 
+        # y eliminar valores no numéricos, pero dropna ya maneja NaN.
+        # df = df[pd.to_numeric(df['monto'], errors='coerce').notna()]
+    # ------------------------------------------------------------------
     
     # Si no se encontró 'numero_movimiento', crearlo vacío/generarlo
     if 'numero_movimiento' not in df.columns:
         if banco_seleccionado == "Bancolombia":
+            # Caso Bancolombia: Queda vacío (tal como lo solicitaste)
             df['numero_movimiento'] = ''
         else:
+            # Caso Demás Bancos: Genera el ID único 'DOC_' + índice.
             df['numero_movimiento'] = 'DOC_' + df.index.astype(str)  
 
-    # Lógica Específica por Banco (Davivienda)
+    # Lógica Específica por Banco
     if banco_seleccionado == "Davivienda":
-        # ... (tu lógica de Davivienda simplificada) ...
+        # Concatenar concepto (asume que "Transacción" fue mapeado a 'transaccion_davivienda' o similar)
+        
+        # Primero, buscamos la columna original 'Transacción'
         col_transaccion = next((col for col in df.columns if 'transacción' in col.lower()), None)
         
-        if col_transaccion and 'concepto' in df.columns and not df.empty:
-            df['concepto'] = df['concepto'].astype(str) + " (" + df[col_transaccion].astype(str) + ")"
+        # Asumimos que 'Descripción motivo' se mapeó a 'concepto'
+        if col_transaccion and 'concepto' in df.columns:
+            # Concatenar la Transacción a la Descripción motivo (columna 'concepto')
+            # Es vital asegurar que el DataFrame no esté vacío después del dropna
+            if not df.empty:
+                 df['concepto'] = df['concepto'].astype(str) + " (" + df[col_transaccion].astype(str) + ")"
+            # st.info("Davivienda: Se concatenó la columna Transacción al Concepto.")
         
+        # Eliminar la columna 'Valor Cheque' si existe y es inútil (solo en Davivienda)
         col_valor_cheque = next((col for col in df.columns if 'valor cheque' in col.lower()), None)
         if col_valor_cheque:
             df = df.drop(columns=[col_valor_cheque], errors='ignore')
 
     if 'numero_movimiento' not in df.columns:
+        # Crea un identificador único. Si 'Documento' existía, se debe haber renombrado antes.
         df['numero_movimiento'] = 'DOC_' + df.index.astype(str)      
     
     return df
+    
 def detectar_formato_fechas(fechas_str, porcentaje_analisis=0.6):
     """
     Analiza un porcentaje de fechas para detectar el formato predominante (DD/MM/AAAA o MM/DD/AAAA).
@@ -592,6 +601,16 @@ def procesar_montos(df, nombre_archivo, es_extracto=False, invertir_signos=False
     # [CÓDIGO ORIGINAL - Lógica de verificación final]
     if df["monto"].eq(0).all() and (cols_debito or cols_credito):
         st.warning(f"La columna 'monto' resultó en ceros en {nombre_archivo}. Verifica las columnas de débitos/créditos.")
+
+    # 🌟 FILTRO FINAL: ELIMINAR MONTOS CERO EN EL EXTRACTO BANCARIO 🌟
+    if es_extracto and 'monto' in df.columns and not df.empty:
+        filas_antes = len(df)
+        # Filtra para mantener solo las filas donde el valor absoluto del monto es diferente de 0.
+        df = df[df['monto'].abs() != 0]
+        filas_despues = len(df)
+        if filas_antes > filas_despues:
+            st.info(f"Se eliminaron {filas_antes - filas_despues} registros con monto cero del Extracto Bancario.")
+
 
     return df
 
