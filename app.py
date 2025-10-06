@@ -186,11 +186,11 @@ def normalizar_dataframe(df, columnas_esperadas,banco_seleccionado="Generico"):
     # Si no se encontró 'numero_movimiento', crearlo vacío para evitar KeyErrors posteriores
     if 'numero_movimiento' not in df.columns:
         if banco_seleccionado == "Bancolombia":
+            # Caso Bancolombia: Queda vacío (tal como lo solicitaste)
             df['numero_movimiento'] = ''
         else:
-        df['numero_movimiento'] = 'DOC_' + df.index.astype(str)
-        # Opcionalmente, podrías usar una columna de conceptos si es más útil:
-        # df['numero_movimiento'] = df.get('concepto', '').fillna('').astype(str).str.slice(0, 50) 
+            # Caso Demás Bancos: Genera el ID único 'DOC_' + índice.
+            df['numero_movimiento'] = 'DOC_' + df.index.astype(str) 
 
     # Lógica Específica por Banco
     if banco_seleccionado == "Davivienda":
