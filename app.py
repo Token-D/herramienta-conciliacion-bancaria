@@ -11,7 +11,7 @@ from itertools import combinations
 def buscar_fila_encabezados(df, columnas_esperadas, max_filas=30, banco=None):
     """
     Busca la fila que contiene al menos 'fecha' y una columna de monto (monto, debitos o creditos).
-    Si el parámetro 'banco' es Bancolombia, fuerza la coincidencia exacta de los encabezados.
+    Si el parámetro 'banco' es Bancolombia, fuerza la coincidencia EXACTA de los encabezados.
     Retorna solo el índice de la fila (integer), o None si no se encuentra.
     """
     
@@ -36,11 +36,11 @@ def buscar_fila_encabezados(df, columnas_esperadas, max_filas=30, banco=None):
         celda = str(celda).strip().lower()
         for variante in variantes_esperadas:
             if es_bancolombia_check:
-                # Si es Bancolombia, solo buscamos coincidencia EXACTA
+                # Si es Bancolombia, solo buscamos coincidencia EXACTA (e.g., celda == 'fecha')
                 if celda == variante:
                     return True
             else:
-                # Para otros bancos, buscamos coincidencia PARCIAL
+                # Para otros bancos, buscamos coincidencia PARCIAL (e.g., 'fecha' in 'fecha de operación')
                 if variante in celda:
                     return True
         return False
