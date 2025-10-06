@@ -1248,18 +1248,18 @@ if extracto_file and auxiliar_file:
         df_para_excel['monto'] = pd.to_numeric(df_para_excel['monto'], errors='coerce').fillna(0.0)
     
     # 3. Rellenar otros NaN que podrían estar en columnas de texto con cadena vacía
-    df_para_excel = df_para_excel.fillna('')
+        df_para_excel = df_para_excel.fillna('')
 
-    output = BytesIO()
+        output = BytesIO()
     # Asegúrate de que aplicar_formato_excel está definida en tu código
-    with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
         # Usamos el DF ya limpio
-        df_para_excel.to_excel(writer, sheet_name="Resultados", index=False)
+            df_para_excel.to_excel(writer, sheet_name="Resultados", index=False)
         # Asume que aplicar_formato_excel toma el 'writer' y el 'df'
         # Si tu función aplicar_formato_excel usa el DF original, puede necesitar ser actualizada también.
-        aplicar_formato_excel(writer, df_para_excel)
-    output.seek(0)
-    return output
+            aplicar_formato_excel(writer, df_para_excel)
+        output.seek(0)
+        return output
 
         excel_data = generar_excel(resultados_df)
         st.download_button(
