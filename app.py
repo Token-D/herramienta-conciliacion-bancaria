@@ -71,7 +71,7 @@ def buscar_fila_encabezados(df, columnas_esperadas, max_filas=30, banco_seleccio
     return None
     
 # Función para leer datos a partir de la fila de encabezados
-def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, max_filas=30):
+def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, max_filas=30, banco_seleccionado="Generico"):
     # Determinar la extensión del archivo
     extension = archivo.name.split('.')[-1].lower()
     
