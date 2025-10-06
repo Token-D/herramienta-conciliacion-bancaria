@@ -1239,17 +1239,12 @@ if extracto_file and auxiliar_file:
 
         # Generar Excel
         def generar_excel(resultados_df):
-    """
-    Prepara el DataFrame de resultados para exportación y genera el archivo Excel.
-    Aplica limpieza final para evitar errores de NaN/INF en xlsxwriter.
-    """
-   
-    # 1. Copia del DF para modificar sin afectar el original
+            # 1. Copia del DF para modificar sin afectar el original
     df_para_excel = resultados_df.copy()
 
     # 2. Rellenar NaN en la columna 'monto' con 0.0
     # Forzamos a numérico antes de rellenar, en caso de que Pandas haya inferido otro tipo
-    if 'monto' in df_para_excel.columns:
+          if 'monto' in df_para_excel.columns:
         df_para_excel['monto'] = pd.to_numeric(df_para_excel['monto'], errors='coerce').fillna(0.0)
     
     # 3. Rellenar otros NaN que podrían estar en columnas de texto con cadena vacía
