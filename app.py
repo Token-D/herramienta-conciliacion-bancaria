@@ -6,6 +6,7 @@ from dateutil.parser import parse as parse_date
 import re
 from collections import Counter
 from itertools import combinations
+import numpy as np
 
 # Función para buscar la fila de encabezados
 def buscar_fila_encabezados(df, columnas_esperadas, max_filas=30, banco_seleccionado="Generico"):
@@ -144,43 +145,11 @@ def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, ma
     
     return df
 
-# Función para normalizar un DataFrame
-import pandas as pd
-import numpy as np
+
 
 def normalizar_dataframe(df, columnas_esperadas, banco_seleccionado="Generico"):
-    """
-    Normaliza un DataFrame para que use los nombres de columnas esperados y 
-    elimina filas con 'fecha' o 'monto' vacíos.
-    """
-    # Convertir los nombres de las columnas del DataFrame a minúsculas
-    df.columns = [str(col).lower().strip() for col in df.columns]
-    
-    # Crear un mapeo de nombres de columnas basado en las variantes
-    mapeo_columnas = {}
-    for col_esperada, variantes in columnas_esperadas.items():
-        for variante in variantes:
-            variante_lower = variante.lower().strip()
-            mapeo_columnas[variante_lower] = col_esperada
-    
-    # Renombrar las columnas según el mapeo
-    nuevo_nombres = []
-    columnas_vistas = set()
-    
-    for col in df.columns:
-        # Verificar coincidencias aproximadas
-        col_encontrada = False
-        for variante, nombre_esperado in mapeo_columnas.items():
-            if variante in col:
-                if nombre_esperado not in columnas_vistas:
-                    nuevo_nombres.append(nombre_esperado)
-                    columnas_vistas.add(nombre_esperado)
-                    col_encontrada = True
-                    break
-        
-        if not col_encontrada:
-            nuevo_nombres.append(col)
-    
+    # ... (código anterior de renombrado y limpieza de columnas) ...
+
     # Asignar los nuevos nombres de columnas
     df.columns = nuevo_nombres
     
@@ -188,9 +157,8 @@ def normalizar_dataframe(df, columnas_esperadas, banco_seleccionado="Generico"):
     df = df.loc[:, ~df.columns.duplicated(keep='first')]
 
     # ------------------------------------------------------------------
-    ## Lógica para Eliminar Registros Vacíos en 'fecha' o 'monto'
-    # Las columnas clave que siempre deben existir y no estar vacías son 'fecha' y 'monto'.
-    
+    ## Lógica 1: Eliminar Registros Vacíos en 'fecha' o 'monto' (YA EXISTENTE)
+    # ... (tu código existente para dropna) ...
     columnas_a_verificar = []
     if 'fecha' in df.columns:
         columnas_a_verificar.append('fecha')
@@ -198,14 +166,32 @@ def normalizar_dataframe(df, columnas_esperadas, banco_seleccionado="Generico"):
         columnas_a_verificar.append('monto')
     
     if columnas_a_verificar:
-        # Usamos dropna para eliminar filas donde CUALQUIERA de las columnas 
-        # en 'subset' tenga un valor nulo (NaN, None, etc.).
+        # Elimina filas donde CUALQUIERA de las columnas en 'subset' tenga un valor nulo.
         df.dropna(subset=columnas_a_verificar, inplace=True) 
-        
-        # Opcional: Para ser más riguroso, podrías querer convertir el monto a numérico 
-        # y eliminar valores no numéricos, pero dropna ya maneja NaN.
-        # df = df[pd.to_numeric(df['monto'], errors='coerce').notna()]
     # ------------------------------------------------------------------
+    
+    # ------------------------------------------------------------------
+    ## Lógica 2: Eliminar Registros donde 'monto' sea CERO (NUEVA REGLA)
+    # Esto elimina los registros que, tras la conversión en procesar_montos, 
+    # resultaron en un valor numérico de 0.0 (debido a errores de lectura o formato inválido).
+    if 'monto' in df.columns:
+        filas_antes_cero = len(df)
+        
+        # Filtra para mantener solo las filas donde el valor absoluto del monto es diferente de 0.
+        # Es importante usar el valor absoluto (abs) para manejar -0.0 correctamente si fuera el caso, 
+        # aunque en pandas el 0 es 0.
+        df = df[df['monto'].abs() != 0]
+        
+        filas_despues_cero = len(df)
+        
+        # Opcional: Agregar una notificación si usas Streamlit (st)
+        # if 'st' in globals():
+        #    st.info(f"Se eliminaron {filas_antes_cero - filas_despues_cero} filas con Monto igual a cero.")
+
+    # ------------------------------------------------------------------
+    
+    # Si no se encontró 'numero_movimiento', crearlo vacío/generarlo
+    # ... (código para 'numero_movimiento' y lógica específica de banco) ...
     
     # Si no se encontró 'numero_movimiento', crearlo vacío/generarlo
     if 'numero_movimiento' not in df.columns:
@@ -218,18 +204,15 @@ def normalizar_dataframe(df, columnas_esperadas, banco_seleccionado="Generico"):
 
     # Lógica Específica por Banco
     if banco_seleccionado == "Davivienda":
-        # Concatenar concepto (asume que "Transacción" fue mapeado a 'transaccion_davivienda' o similar)
-        
+        # ... (Lógica de Davivienda) ...
         # Primero, buscamos la columna original 'Transacción'
         col_transaccion = next((col for col in df.columns if 'transacción' in col.lower()), None)
         
         # Asumimos que 'Descripción motivo' se mapeó a 'concepto'
         if col_transaccion and 'concepto' in df.columns:
             # Concatenar la Transacción a la Descripción motivo (columna 'concepto')
-            # Es vital asegurar que el DataFrame no esté vacío después del dropna
             if not df.empty:
                  df['concepto'] = df['concepto'].astype(str) + " (" + df[col_transaccion].astype(str) + ")"
-            # st.info("Davivienda: Se concatenó la columna Transacción al Concepto.")
         
         # Eliminar la columna 'Valor Cheque' si existe y es inútil (solo en Davivienda)
         col_valor_cheque = next((col for col in df.columns if 'valor cheque' in col.lower()), None)
@@ -241,7 +224,6 @@ def normalizar_dataframe(df, columnas_esperadas, banco_seleccionado="Generico"):
         df['numero_movimiento'] = 'DOC_' + df.index.astype(str)      
     
     return df
-
 def detectar_formato_fechas(fechas_str, porcentaje_analisis=0.6):
     """
     Analiza un porcentaje de fechas para detectar el formato predominante (DD/MM/AAAA o MM/DD/AAAA).
