@@ -145,12 +145,11 @@ def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, ma
     return df
 
 # Función para normalizar un DataFrame
-def normalizar_dataframe(df, columnas_esperadas, banco_seleccionado="Generico"):
+def normalizar_dataframe(df, columnas_esperadas,banco_seleccionado="Generico"):
     """
-    Normaliza un DataFrame para que use los nombres de columnas esperados
-    y elimina filas sin fecha o monto válido.
+    Normaliza un DataFrame para que use los nombres de columnas esperados.
     """
-    # Convertir los nombres de las columnas del DataFrame a minúsculas y quitar espacios
+    # Convertir los nombres de las columnas del DataFrame a minúsculas
     df.columns = [str(col).lower().strip() for col in df.columns]
     
     # Crear un mapeo de nombres de columnas basado en las variantes
@@ -165,8 +164,8 @@ def normalizar_dataframe(df, columnas_esperadas, banco_seleccionado="Generico"):
     columnas_vistas = set()
     
     for col in df.columns:
+        # Verificar coincidencias aproximadas
         col_encontrada = False
-        # Buscamos la coincidencia de variante en el nombre de la columna
         for variante, nombre_esperado in mapeo_columnas.items():
             if variante in col:
                 if nombre_esperado not in columnas_vistas:
@@ -184,61 +183,37 @@ def normalizar_dataframe(df, columnas_esperadas, banco_seleccionado="Generico"):
     # Eliminar columnas duplicadas después de renombrar
     df = df.loc[:, ~df.columns.duplicated(keep='first')]
     
-    # *************************************************************
-    # PASO DE LIMPIEZA CLAVE: CONVERSIÓN DE TIPOS Y ELIMINACIÓN DE FILAS INCOMPLETAS
-    # *************************************************************
-    
-    # 1. Convertir 'fecha' a datetime, forzando NaT en caso de error
-    if 'fecha' in df.columns:
-        df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce')
-    
-    # 2. Convertir 'monto' a numérico, forzando NaN en caso de error
-    if 'monto' in df.columns:
-        df['monto'] = pd.to_numeric(df['monto'], errors='coerce')
-        
-    filas_antes = len(df)
-    
-    # 3. Eliminar filas donde 'fecha' o 'monto' sean NaN/NaT (la condición solicitada)
-    df_limpio = df.dropna(subset=['fecha', 'monto']).copy()
-    
-    # 4. Opcional: Eliminar movimientos con monto cero o insignificante
-    df_limpio = df_limpio[abs(df_limpio['monto']) > 0.01].copy()
-    
-    filas_despues = len(df_limpio)
-    df = df_limpio.reset_index(drop=True)
-
-    if filas_antes != filas_despues:
-        print(f"[{banco_seleccionado}] Se eliminaron {filas_antes - filas_despues} filas sin fecha o monto válido antes de la conciliación.")
-        # Opcional: Si quieres mostrar este mensaje en la interfaz Streamlit, descomenta y usa st.info o st.warning
-        # st.info(f"Se eliminaron {filas_antes - filas_despues} filas sin fecha o monto válido en el archivo {banco_seleccionado}.")
-
-
-    # Si no se encontró 'numero_movimiento', crearlo.
+    # Si no se encontró 'numero_movimiento', crearlo vacío para evitar KeyErrors posteriores
     if 'numero_movimiento' not in df.columns:
         if banco_seleccionado == "Bancolombia":
-            # Caso Bancolombia: Asume que la ID se construye de otra manera o queda vacío.
-            # Mejor opción: crea un ID único basado en el índice.
-            df['numero_movimiento'] = 'BCL_' + df.index.astype(str)
+            # Caso Bancolombia: Queda vacío (tal como lo solicitaste)
+            df['numero_movimiento'] = ''
         else:
             # Caso Demás Bancos: Genera el ID único 'DOC_' + índice.
             df['numero_movimiento'] = 'DOC_' + df.index.astype(str) 
 
-    # Lógica Específica por Banco (Davivienda)
+    # Lógica Específica por Banco
     if banco_seleccionado == "Davivienda":
-        # Primero, buscamos la columna original 'transaccion'
+        # Concatenar concepto (asume que "Transacción" fue mapeado a 'transaccion_davivienda' o similar)
+        
+        # Primero, buscamos la columna original 'Transacción'
         col_transaccion = next((col for col in df.columns if 'transacción' in col.lower()), None)
         
         # Asumimos que 'Descripción motivo' se mapeó a 'concepto'
         if col_transaccion and 'concepto' in df.columns:
             # Concatenar la Transacción a la Descripción motivo (columna 'concepto')
             df['concepto'] = df['concepto'].astype(str) + " (" + df[col_transaccion].astype(str) + ")"
-            # st.info("Davivienda: Se concatenó la columna Transacción al Concepto.")
+            st.info("Davivienda: Se concatenó la columna Transacción al Concepto.")
         
-        # Eliminar la columna 'Valor Cheque' si existe
+        # Eliminar la columna 'Valor Cheque' si existe y es inútil (solo en Davivienda)
         col_valor_cheque = next((col for col in df.columns if 'valor cheque' in col.lower()), None)
         if col_valor_cheque:
             df = df.drop(columns=[col_valor_cheque], errors='ignore')
 
+    if 'numero_movimiento' not in df.columns:
+        # Crea un identificador único. Si 'Documento' existía, se debe haber renombrado antes.
+        df['numero_movimiento'] = 'DOC_' + df.index.astype(str)     
+    
     return df
 
 def detectar_formato_fechas(fechas_str, porcentaje_analisis=0.6):
@@ -1239,10 +1214,14 @@ if extracto_file and auxiliar_file:
 
         # Generar Excel
         def generar_excel(resultados_df):
+            df_para_excel = resultados_df.copy()
+             if 'monto' in df_para_excel.columns:
+                 df_para_excel['monto'] = pd.to_numeric(df_para_excel['monto'], errors='coerce').fillna(0.0)
+                 df_para_excel = df_para_excel.fillna('')
             output = BytesIO()
             with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-                resultados_df.to_excel(writer, sheet_name="Resultados", index=False)
-                aplicar_formato_excel(writer, resultados_df)
+                df_para_excel.to_excel(writer, sheet_name="Resultados", index=False)
+                aplicar_formato_excel(writer, df_para_excel)
             output.seek(0)
             return output
 
