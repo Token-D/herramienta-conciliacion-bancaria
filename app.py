@@ -145,9 +145,13 @@ def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, ma
     return df
 
 # Función para normalizar un DataFrame
-def normalizar_dataframe(df, columnas_esperadas,banco_seleccionado="Generico"):
+import pandas as pd
+import numpy as np
+
+def normalizar_dataframe(df, columnas_esperadas, banco_seleccionado="Generico"):
     """
-    Normaliza un DataFrame para que use los nombres de columnas esperados.
+    Normaliza un DataFrame para que use los nombres de columnas esperados y 
+    elimina filas con 'fecha' o 'monto' vacíos.
     """
     # Convertir los nombres de las columnas del DataFrame a minúsculas
     df.columns = [str(col).lower().strip() for col in df.columns]
@@ -182,15 +186,35 @@ def normalizar_dataframe(df, columnas_esperadas,banco_seleccionado="Generico"):
     
     # Eliminar columnas duplicadas después de renombrar
     df = df.loc[:, ~df.columns.duplicated(keep='first')]
+
+    # ------------------------------------------------------------------
+    ## Lógica para Eliminar Registros Vacíos en 'fecha' o 'monto'
+    # Las columnas clave que siempre deben existir y no estar vacías son 'fecha' y 'monto'.
     
-    # Si no se encontró 'numero_movimiento', crearlo vacío para evitar KeyErrors posteriores
+    columnas_a_verificar = []
+    if 'fecha' in df.columns:
+        columnas_a_verificar.append('fecha')
+    if 'monto' in df.columns:
+        columnas_a_verificar.append('monto')
+    
+    if columnas_a_verificar:
+        # Usamos dropna para eliminar filas donde CUALQUIERA de las columnas 
+        # en 'subset' tenga un valor nulo (NaN, None, etc.).
+        df.dropna(subset=columnas_a_verificar, inplace=True) 
+        
+        # Opcional: Para ser más riguroso, podrías querer convertir el monto a numérico 
+        # y eliminar valores no numéricos, pero dropna ya maneja NaN.
+        # df = df[pd.to_numeric(df['monto'], errors='coerce').notna()]
+    # ------------------------------------------------------------------
+    
+    # Si no se encontró 'numero_movimiento', crearlo vacío/generarlo
     if 'numero_movimiento' not in df.columns:
         if banco_seleccionado == "Bancolombia":
             # Caso Bancolombia: Queda vacío (tal como lo solicitaste)
             df['numero_movimiento'] = ''
         else:
             # Caso Demás Bancos: Genera el ID único 'DOC_' + índice.
-            df['numero_movimiento'] = 'DOC_' + df.index.astype(str) 
+            df['numero_movimiento'] = 'DOC_' + df.index.astype(str)  
 
     # Lógica Específica por Banco
     if banco_seleccionado == "Davivienda":
@@ -202,8 +226,10 @@ def normalizar_dataframe(df, columnas_esperadas,banco_seleccionado="Generico"):
         # Asumimos que 'Descripción motivo' se mapeó a 'concepto'
         if col_transaccion and 'concepto' in df.columns:
             # Concatenar la Transacción a la Descripción motivo (columna 'concepto')
-            df['concepto'] = df['concepto'].astype(str) + " (" + df[col_transaccion].astype(str) + ")"
-            st.info("Davivienda: Se concatenó la columna Transacción al Concepto.")
+            # Es vital asegurar que el DataFrame no esté vacío después del dropna
+            if not df.empty:
+                 df['concepto'] = df['concepto'].astype(str) + " (" + df[col_transaccion].astype(str) + ")"
+            # st.info("Davivienda: Se concatenó la columna Transacción al Concepto.")
         
         # Eliminar la columna 'Valor Cheque' si existe y es inútil (solo en Davivienda)
         col_valor_cheque = next((col for col in df.columns if 'valor cheque' in col.lower()), None)
@@ -212,7 +238,7 @@ def normalizar_dataframe(df, columnas_esperadas,banco_seleccionado="Generico"):
 
     if 'numero_movimiento' not in df.columns:
         # Crea un identificador único. Si 'Documento' existía, se debe haber renombrado antes.
-        df['numero_movimiento'] = 'DOC_' + df.index.astype(str)     
+        df['numero_movimiento'] = 'DOC_' + df.index.astype(str)      
     
     return df
 
