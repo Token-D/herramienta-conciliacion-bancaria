@@ -325,19 +325,25 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
             st.write(f"Formato de fecha detectado en {nombre_archivo}: {formato_fecha}, Año presente: {año_presente}")
 
         def parsear_fecha_auxiliar(fecha_str):
-            if pd.isna(fecha_str) or fecha_str in ['', 'nan', 'NaT']:
+            # Asegurar que el input sea un string antes de la manipulación
+            if not isinstance(fecha_str, str):
+                fecha_str = str(fecha_str)
+
+            if pd.isna(fecha_str) or fecha_str in ['', 'nan', 'NaT', 'None']:
                 return pd.NaT
 
             fecha_str = fecha_str.replace('-', '/').replace('.', '/')
             
             try:
                 # FORZAR DD/MM/YYYY. Esto garantiza que 02/05/2025 sea 5 de Febrero.
+                # Nota: usamos pd.to_datetime en lugar del parser genérico para evitar ambigüedad.
                 return pd.to_datetime(fecha_str, format='%d/%m/%Y', errors='raise')
             except (ValueError, TypeError, IndexError):
                 # Manejar fechas sin año (ej. '05/02'), asumiendo siempre DD/MM
                 try:
                     partes = fecha_str.split('/')
                     if len(partes) == 2:
+                        # ... (La lógica de fechas sin año se mantiene igual) ...
                         comp1, comp2 = map(int, partes[:2])
                         dia, mes = comp1, comp2 # Asumiendo DD/MM (Auxiliar)
                         
@@ -346,8 +352,6 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
                     return pd.NaT
                 except (ValueError, IndexError):
                     return pd.NaT
-
-
         # ----------------------------------------------------------------------
         # 2. FUNCIÓN DEDICADA PARA EL EXTRACTO BANCARIO (CON LÓGICA COMPLEJA)
         # ----------------------------------------------------------------------
