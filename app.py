@@ -557,8 +557,7 @@ def procesar_montos(df, nombre_archivo, es_extracto=False, invertir_signos=False
                 else:
                     df.loc[es_debito_extracto & (df['monto'] < 0), 'monto'] *= -1
 
-                st.success("Davivienda: Lógica de signos y formato 'coma decimal' aplicada correctamente.")
-            # ------------------------------------------------------------
+                #st.success("Davivienda: Lógica de signos y formato 'coma decimal' aplicada correctamente.")
             
         elif es_extracto and banco_seleccionado == "Bancolombia":
             # 🎯 LÓGICA BANCOLOMBIA (Monto único, usa la limpieza de punto decimal)
