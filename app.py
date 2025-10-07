@@ -329,30 +329,35 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
 
             fecha_str = fecha_str.replace('-', '/').replace('.', '/')
             
-            # 💡 CORRECCIÓN CRÍTICA: Eliminar componente de tiempo (ej. '02/05/2025 00:00:00')
+            # 1. Eliminar componente de tiempo (ej. '02/05/2025 00:00:00')
             fecha_solo = fecha_str.split(' ')[0]
             
             try:
-                # FORZAR DD/MM/YYYY. Usamos errors='coerce' para que devuelva NaT si falla,
-                # sin levantar una excepción. Esto captura el caso con año.
-                parsed = pd.to_datetime(fecha_solo, format='%d/%m/%Y', errors='coerce')
-                if pd.notna(parsed):
-                    return parsed
-            except Exception:
-                pass # Continuar al siguiente intento si falla inesperadamente
-
-            # Fallback para fechas sin año (ej. '05/02'), usando el año_base_default
-            try:
-                partes = fecha_solo.split('/')
-                if len(partes) == 2:
-                    comp1, comp2 = map(int, partes[:2])
-                    dia, mes = comp1, comp2 # Asumiendo DD/MM
-                    
-                    if 1 <= dia <= 31 and 1 <= mes <= 12:
-                        return pd.Timestamp(year=año_base_default, month=mes, day=dia)
-                return pd.NaT
-            except (ValueError, IndexError):
-                return pd.NaT
+                # 💡 SOLUCIÓN FINAL: Usamos el parser flexible, pero FORZAMOS 'dayfirst=True'.
+                # Esto maneja formatos mixtos (como YYYY-MM-DD) y también trata 
+                # a 02/05/2025 como DÍA 2 / MES 5. Si la fecha es ambigua (comp1, comp2 <= 12),
+                # la interpreta como DD/MM.
+                parsed = parse_date(fecha_solo, dayfirst=True)
+                
+                # Opcional: Aseguramos que la fecha no sea el año 2025 si estamos en 2025-2026.
+                # Si la fecha parseada es de hace 10 años, podría ser incorrecta.
+                # Como el auxiliar SIEMPRE tiene el año, esto debería ser muy robusto.
+                
+                return parsed
+                
+            except (ValueError, TypeError, IndexError):
+                # 2. Fallback para fechas sin año (ej. '05/02'), usando el año_base_default
+                try:
+                    partes = fecha_solo.split('/')
+                    if len(partes) == 2:
+                        comp1, comp2 = map(int, partes[:2])
+                        dia, mes = comp1, comp2 # Asumiendo DD/MM
+                        
+                        if 1 <= dia <= 31 and 1 <= mes <= 12:
+                            return pd.Timestamp(year=año_base_default, month=mes, day=dia)
+                    return pd.NaT
+                except (ValueError, IndexError):
+                    return pd.NaT
         # ----------------------------------------------------------------------
         # 2. FUNCIÓN DEDICADA PARA EL EXTRACTO BANCARIO (CON LÓGICA COMPLEJA)
         # ----------------------------------------------------------------------
