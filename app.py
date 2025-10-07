@@ -1021,11 +1021,19 @@ def conciliar_banco_completo(extracto_df, auxiliar_df):
         resultados_agrup_ext
     ], ignore_index=True)
     
-    # 🌟 SOLUCIÓN DEFINITIVA: FILTRAR MONTO CERO ANTES DE DEVOLVER EL RESULTADO FINAL 🌟
-    if 'monto' in resultados_finales.columns and not resultados_finales.empty:
-        # Usamos redondeo a 2 decimales para eliminar montos exactamente cero o residuos de punto flotante
-        # Esto elimina los registros de monto cero que vienen del Auxiliar
-        resultados_finales = resultados_finales[resultados_finales['monto'].abs().round(2) != 0.00].copy()
+    # 🌟 SOLUCIÓN DEFINITIVA: FILTRAR SOLO MONTO CERO CON ORIGEN EN EL BANCO 🌟
+    if 'monto' in resultados_finales.columns and 'origen' in resultados_finales.columns and not resultados_finales.empty:
+        
+        # 1. Identificar todos los registros con monto exactamente cero (o muy cercano)
+        monto_es_cero = (resultados_finales['monto'].abs().round(2) == 0.00)
+        
+        # 2. Definir el filtro para MANTENER las filas:
+        #    a) Las que NO tienen monto cero, O
+        #    b) Las que SÍ tienen monto cero, PERO son del 'Libro Auxiliar'
+        filtro_final = (~monto_es_cero) | (monto_es_cero & (resultados_finales['origen'] == 'Libro Auxiliar'))
+        
+        # Aplicar el filtro
+        resultados_finales = resultados_finales[filtro_final].copy()
     
     # Eliminar columnas auxiliares antes de devolver los resultados finales
     if 'index_original' in resultados_finales.columns:
