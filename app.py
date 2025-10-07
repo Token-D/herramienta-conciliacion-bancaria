@@ -1233,9 +1233,10 @@ banco_seleccionado = st.selectbox(
 )
 
 st.subheader("Configuración")
-meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
-mes_seleccionado = st.selectbox("Mes a conciliar (opcional):", ["Todos"] + meses)
-mes_conciliacion = meses.index(mes_seleccionado) + 1 if mes_seleccionado != "Todos" else None
+# meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
+# mes_seleccionado = st.selectbox("Mes a conciliar (opcional):", ["Todos"] + meses)
+# mes_conciliacion = meses.index(mes_seleccionado) + 1 if mes_seleccionado != "Todos" else None
+mes_conciliacion = None 
 
 tipos_aceptados = [
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",  # .xlsx
