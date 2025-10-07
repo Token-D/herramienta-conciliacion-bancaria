@@ -364,8 +364,8 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
         # 2. FUNCIÓN DEDICADA PARA EL EXTRACTO BANCARIO (CON LÓGICA COMPLEJA)
         # ----------------------------------------------------------------------
         def parsear_fecha_extracto(fecha_str, formato_fecha):
-    if pd.isna(fecha_str) or fecha_str in ['', 'nan', 'NaT']:
-        return pd.NaT
+            if pd.isna(fecha_str) or fecha_str in ['', 'nan', 'NaT']:
+                return pd.NaT
 
     try:
         # Normalizar separadores
