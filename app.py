@@ -1005,6 +1005,9 @@ def conciliacion_agrupacion_extracto(extracto_df, auxiliar_df, extracto_concilia
             # 2. **ACTUALIZACIÓN CRÍTICA (UNICIDAD)**: Eliminar los índices usados del DataFrame de trabajo del extracto.
             # Esto evita que los registros del extracto se reutilicen en la siguiente iteración del auxiliar.
             extracto_no_conciliado = extracto_no_conciliado.drop(indices_combinacion, errors='ignore')
+
+            # 3. **FORMATO DE FECHA**: Aplicar formato de fecha DD/MM/YYYY al registro del auxiliar
+            fecha_auxiliar_str = fila_auxiliar["fecha"].strftime('%d/%m/%Y')
                         
             # 4. Obtener números de movimiento (usamos el extracto_df original para evitar errores)
             nums_movimiento = extracto_df.loc[indices_combinacion, "numero_movimiento"].astype(str).tolist()
