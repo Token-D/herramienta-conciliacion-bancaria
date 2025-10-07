@@ -602,18 +602,35 @@ def procesar_montos(df, nombre_archivo, es_extracto=False, invertir_signos=False
     if df["monto"].eq(0).all() and (cols_debito or cols_credito):
         st.warning(f"La columna 'monto' resultó en ceros en {nombre_archivo}. Verifica las columnas de débitos/créditos.")
 
-    # 🌟 FILTRO FINAL: ELIMINAR MONTOS CERO EN EL EXTRACTO BANCARIO 🌟
+    # [CÓDIGO ORIGINAL - Lógica de verificación final]
+    # (Lo mantenemos para advertir si todo el DF resulta en cero)
+    if df["monto"].eq(0).all() and (cols_debito or cols_credito) and not es_extracto:
+        st.warning(f"La columna 'monto' resultó en ceros en {nombre_archivo}. Verifica las columnas de débitos/créditos.")
+
+    # 🌟 FILTRO FINAL: ELIMINAR MONTOS CERO Y NaN EN EL EXTRACTO BANCARIO 🌟
     if es_extracto and 'monto' in df.columns and not df.empty:
         filas_antes = len(df)
-        # Filtra para mantener solo las filas donde el valor absoluto del monto es diferente de 0.
-        df = df[df['monto'].abs() != 0]
+        
+        # --- NUEVA LÓGICA: Combina la eliminación de ceros con la corrección de errores de punto flotante ---
+        
+        # 1. Aplicar redondeo para tratar como 0 cualquier residuo de punto flotante (ej: 1e-15)
+        df['monto_redondeado'] = df['monto'].round(2)
+        
+        # 2. **Filtrado:** Eliminar filas donde el monto redondeado es EXACTAMENTE cero.
+        # Esto incluye los montos reales de 0 y los NaN que se convirtieron a 0 por .fillna(0)
+        df_filtrado = df[df['monto_redondeado'] != 0.00].copy()
+        
+        # 3. Limpieza final: Eliminar la columna auxiliar
+        df_filtrado = df_filtrado.drop(columns=['monto_redondeado'])
+        df = df_filtrado
+        
+        # --- Mensaje de éxito ---
         filas_despues = len(df)
         if filas_antes > filas_despues:
-            st.info(f"Se eliminaron {filas_antes - filas_despues} registros con monto cero del Extracto Bancario.")
-
-
+            st.info(f"Se eliminaron {filas_antes - filas_despues} registros con monto cero (incluyendo vacíos/no numéricos) del Extracto Bancario. ✅")
+            
     return df
-
+    
 # Función para encontrar combinaciones que sumen un monto específico
 def encontrar_combinaciones(df, monto_objetivo, tolerancia=0.01, max_combinacion=4):
     """
