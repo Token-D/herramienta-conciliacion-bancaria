@@ -356,7 +356,18 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
                         if 1 <= dia <= 31 and 1 <= mes <= 12:
                             return pd.Timestamp(year=año, month=mes, day=dia)
 
-                # Para auxiliar o si no se detectó formato, usar dateutil.parser
+                # 🌟 NUEVA LÓGICA CRÍTICA: Priorizar DD/MM/YYYY para el Auxiliar 🌟
+                
+                # 1. Si NO es extracto (es Auxiliar), forzamos el formato explícito.
+                if not es_extracto:
+                    try:
+                        # Forzamos DD/MM/YYYY. Esto garantiza que 02/05/2025 sea 5 de Febrero.
+                        return pd.to_datetime(fecha_str, format='%d/%m/%Y', errors='raise')
+                    except (ValueError, TypeError):
+                        # Si la conversión explícita falla, pasamos al parser genérico (Paso 2).
+                        pass
+                
+                # 2. Para extracto (si falló la detección) o si Auxiliar falló el formato explícito, usar dateutil.parser (FALLBACK)
                 parsed = parse_date(fecha_str, dayfirst=True, fuzzy=True)
 
                 # Para extracto, ajustar mes si mes_conciliacion está definido
@@ -364,6 +375,7 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
                     return pd.Timestamp(year=parsed.year, month=mes_conciliacion, day=parsed.day)
 
                 return parsed
+
             except (ValueError, TypeError):
                 # Manejar fechas sin año
                 try:
