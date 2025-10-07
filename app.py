@@ -364,71 +364,71 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
         # 2. FUNCIÓN DEDICADA PARA EL EXTRACTO BANCARIO (CON LÓGICA COMPLEJA)
         # ----------------------------------------------------------------------
         def parsear_fecha_extracto(fecha_str, formato_fecha):
-            if pd.isna(fecha_str) or fecha_str in ['', 'nan', 'NaT']:
-                return pd.NaT
+    if pd.isna(fecha_str) or fecha_str in ['', 'nan', 'NaT']:
+        return pd.NaT
 
-            try:
-                # Normalizar separadores
-                fecha_str = fecha_str.replace('-', '/').replace('.', '/')
+    try:
+        # Normalizar separadores
+        fecha_str = fecha_str.replace('-', '/').replace('.', '/')
 
-                # Usar formato detectado
-                if formato_fecha != "desconocido":
-                    partes = fecha_str.split('/')
-                    if len(partes) >= 2:
-                        comp1, comp2 = map(int, partes[:2])
-                        año = año_base
-                        if len(partes) == 3:
-                            año = int(partes[2])
-                            if len(partes[2]) == 2:
-                                año += 2000 if año < 50 else 1900
+        # Usar formato detectado (fechas con año)
+        if formato_fecha != "desconocido":
+            partes = fecha_str.split('/')
+            if len(partes) >= 2:
+                comp1, comp2 = map(int, partes[:2])
+                año = año_base
+                if len(partes) == 3:
+                    año = int(partes[2])
+                    if len(partes[2]) == 2:
+                        año += 2000 if año < 50 else 1900
 
-                        if formato_fecha == "DD/MM/AAAA":
-                            dia, mes = comp1, comp2
-                        else:  # MM/DD/AAAA
-                            dia, mes = comp2, comp1
+                if formato_fecha == "DD/MM/AAAA":
+                    dia, mes = comp1, comp2
+                else:  # MM/DD/AAAA
+                    dia, mes = comp2, comp1
 
-                        # Forzar mes_conciliacion si está definido (SOLO PARA EXTRACTO)
-                        if mes_conciliacion and 1 <= mes <= 12:
-                            mes = mes_conciliacion
+                # Forzar mes_conciliacion si está definido (SOLO PARA EXTRACTO)
+                if mes_conciliacion and 1 <= mes <= 12:
+                    mes = mes_conciliacion
 
-                        if 1 <= dia <= 31 and 1 <= mes <= 12:
-                            return pd.Timestamp(year=año, month=mes, day=dia)
+                if 1 <= dia <= 31 and 1 <= mes <= 12:
+                    return pd.Timestamp(year=año, month=mes, day=dia)
 
-                # Fallback genérico si el formato no se detectó
-                parsed = parse_date(fecha_str, dayfirst=True, fuzzy=True)
+        # Fallback genérico si el formato no se detectó (fechas con año)
+        parsed = parse_date(fecha_str, dayfirst=True, fuzzy=True)
 
-                # Ajustar mes si mes_conciliacion está definido (SOLO PARA EXTRACTO)
-                if mes_conciliacion and parsed.month != mes_conciliacion:
-                    return pd.Timestamp(year=parsed.year, month=mes_conciliacion, day=parsed.day)
+        # Ajustar mes si mes_conciliacion está definido (SOLO PARA EXTRACTO)
+        if mes_conciliacion and parsed.month != mes_conciliacion:
+            # CORRECCIÓN: Aseguramos el mes y mantenemos el día original.
+            return pd.Timestamp(year=parsed.year, month=mes_conciliacion, day=parsed.day)
 
-                return parsed
-            except (ValueError, TypeError):
-                # Manejar fechas sin año para Extracto
-                try:
-                    partes = fecha_str.split('/')
-                    if len(partes) == 2:
-                        comp1, comp2 = map(int, partes[:2])
-                        
-                        # 💡 LÓGICA CORREGIDA para Fechas sin Año:
-                        if formato_fecha == "DD/MM/AAAA" or comp1 > 12: # Si el primer componente es > 12, es casi seguro el día.
-                            dia, mes = comp1, comp2 # Asume DD/MM
-                        elif formato_fecha == "MM/DD/AAAA" or comp2 > 12: # Si el segundo componente es > 12.
-                            dia, mes = comp2, comp1 # Asume MM/DD
-                        else: # Si es ambiguo (ej. 02/05), respetamos el formato detectado o asumimos DD/MM (para ser consistente con el Auxiliar)
-                            dia, mes = comp1, comp2 
-                            if formato_fecha == "MM/DD/AAAA": # Forzamos la ambigüedad al formato detectado
-                                dia, mes = comp2, comp1
+        return parsed
+    except (ValueError, TypeError):
+        # Manejar fechas sin año para Extracto (donde ocurrió la corrección lógica)
+        try:
+            partes = fecha_str.split('/')
+            if len(partes) == 2:
+                comp1, comp2 = map(int, partes[:2])
+                
+                # 💡 LÓGICA CORREGIDA para Fechas sin Año:
+                if formato_fecha == "DD/MM/AAAA" or comp1 > 12: # Si el primer componente es > 12, es casi seguro el día.
+                    dia, mes = comp1, comp2 # Asume DD/MM
+                elif formato_fecha == "MM/DD/AAAA" or comp2 > 12: # Si el segundo componente es > 12.
+                    dia, mes = comp2, comp1 # Asume MM/DD
+                else: # Si es ambiguo (ej. 02/05), asumimos DD/MM (para ser consistente con Auxiliar)
+                    dia, mes = comp1, comp2 
+                    if formato_fecha == "MM/DD/AAAA": # Forzamos la ambigüedad al formato detectado
+                        dia, mes = comp2, comp1
 
+                # Forzar mes_conciliacion para extracto
+                if mes_conciliacion:
+                    mes = mes_conciliacion
 
-                        # Forzar mes_conciliacion para extracto
-                        if mes_conciliacion:
-                            mes = mes_conciliacion
-
-                        if 1 <= dia <= 31 and 1 <= mes <= 12:
-                            return pd.Timestamp(year=año_base, month=mes, day=dia)
-                    return pd.NaT
-                except (ValueError, IndexError):
-                    return pd.NaT
+                if 1 <= dia <= 31 and 1 <= mes <= 12:
+                    return pd.Timestamp(year=año_base, month=mes, day=dia)
+            return pd.NaT
+        except (ValueError, IndexError):
+            return pd.NaT
 
         # SI estamos procesando el Extracto y ya tenemos un Auxiliar procesado (y correcto), 
         # usamos el año del Auxiliar para el año base.
