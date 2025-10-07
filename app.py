@@ -335,31 +335,37 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
 
                 # Para extracto, usar formato detectado
                 if es_extracto and formato_fecha != "desconocido":
-                    partes = fecha_str.split('/')
-                    if len(partes) >= 2:
-                        comp1, comp2 = map(int, partes[:2])
-                        año = año_base
-                        if len(partes) == 3:
-                            año = int(partes[2])
-                            if len(partes[2]) == 2:
-                                año += 2000 if año < 50 else 1900
+                    # ... (Mantener tu lógica existente para el extracto) ...
+                    
+                    # ----------------------------------------------------
+                    # (Toda la lógica de extracto va aquí, no necesita cambios)
+                    # ----------------------------------------------------
 
-                        if formato_fecha == "DD/MM/AAAA":
-                            dia, mes = comp1, comp2
-                        else:  # MM/DD/AAAA
-                            dia, mes = comp2, comp1
+                    if formato_fecha == "DD/MM/AAAA":
+                        dia, mes = comp1, comp2
+                    else:    # MM/DD/AAAA
+                        dia, mes = comp2, comp1
 
-                        # Forzar mes_conciliacion si está definido
-                        if mes_conciliacion and 1 <= mes <= 12:
-                            mes = mes_conciliacion
+                    # ... (restante de la lógica del extracto) ...
+                    
+                    if 1 <= dia <= 31 and 1 <= mes <= 12:
+                        return pd.Timestamp(year=año, month=mes, day=dia)
 
-                        if 1 <= dia <= 31 and 1 <= mes <= 12:
-                            return pd.Timestamp(year=año, month=mes, day=dia)
+                # 🌟 CAMBIO CRÍTICO APLICADO AQUÍ (PARA EL AUXILIAR Y CASOS FALLIDOS) 🌟
+                # Para el Libro Auxiliar ('Libro Auxiliar') o si no se detectó formato:
+                # 1. Intentamos el formato explícito DD/MM/YYYY (el que necesitamos).
+                # 2. Si falla, usamos el parser de dateutil con dayfirst=True como fallback.
+                
+                try:
+                    # INTENTO 1 (MÁS SEGURO): Forzar DD/MM/YYYY para el auxiliar
+                    return pd.to_datetime(fecha_str, format='%d/%m/%Y', errors='raise')
 
-                # Para auxiliar o si no se detectó formato, usar dateutil.parser
-                parsed = parse_date(fecha_str, dayfirst=True, fuzzy=True)
+                except (ValueError, TypeError, IndexError):
+                    # INTENTO 2 (FALLBACK): Usar el parser genérico con dayfirst=True
+                    # (Requiere 'from dateutil.parser import parse as parse_date' al inicio del archivo)
+                    parsed = parse_date(fecha_str, dayfirst=True, fuzzy=True)
 
-                # Para extracto, ajustar mes si mes_conciliacion está definido
+                # Ajustar mes para el extracto si mes_conciliacion está definido
                 if es_extracto and mes_conciliacion and parsed.month != mes_conciliacion:
                     return pd.Timestamp(year=parsed.year, month=mes_conciliacion, day=parsed.day)
 
