@@ -468,7 +468,7 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
 
         # Reportar fechas inválidas
         fechas_invalidas = df['fecha'].isna().sum()
-        if fechas_invalidas > 0:
+            if fechas_invalidas > 0:
             # st.warning(f"Se encontraron {fechas_invalidas} fechas inválidas en {nombre_archivo}.")
             # st.write("Ejemplos de fechas inválidas:")
             # st.write(df[df['fecha'].isna()][['fecha_original', 'fecha_str']].head())
@@ -477,19 +477,7 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
         # st.write(f"Fechas parseadas en {nombre_archivo} (primeras 4):")
         # st.write(df[['fecha_original', 'fecha_str', 'fecha']].head(4))
 
-        # Filtrar por mes solo para extracto si se especifica
-        if mes_conciliacion and es_extracto:
-            filas_antes = len(df)
-            df = df[df['fecha'].dt.month == mes_conciliacion]
-            if len(df) < filas_antes:
-                meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-                         'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
-                st.info(f"Se filtraron {filas_antes - len(df)} registros fuera del mes {meses[mes_conciliacion-1]} en {nombre_archivo}.")
-                if filas_antes - len(df) > 0:
-                    st.write(f"Ejemplos de fechas filtradas (no en {meses[mes_conciliacion-1]}):")
-                    st.write(df[df['fecha'].dt.month != mes_conciliacion][['fecha_original', 'fecha_str', 'fecha']].head())
-
-        # Limpiar columnas temporales
+               # Limpiar columnas temporales
         df = df.drop(['fecha_str'], axis=1, errors='ignore')
 
     except Exception as e:
