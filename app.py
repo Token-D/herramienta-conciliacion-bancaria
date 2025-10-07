@@ -317,7 +317,7 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
         # Detectar formato (solo para extracto)
         if es_extracto:
             formato_fecha, _ = detectar_formato_fechas(df['fecha_str'])
-            st.write(f"Formato de fecha detectado en {nombre_archivo}: {formato_fecha}")
+            #st.write(f"Formato de fecha detectado en {nombre_archivo}: {formato_fecha}")
 
         
         # ----------------------------------------------------------------------
@@ -1311,7 +1311,7 @@ def realizar_conciliacion(extracto_file, auxiliar_file, mes_conciliacion, invert
     extracto_df = estandarizar_fechas(extracto_df, "Extracto Bancario", mes_conciliacion=None, completar_anio=True, auxiliar_df=auxiliar_df)
 
     st.subheader("🕵️ Análisis de Datos Procesados del Extracto Bancario")
-    st.info("Primeros 5 registros del Extracto Bancario después del procesamiento de encabezados, fechas y montos.")
+    st.info("Primeros 5 registros del Extracto Bancario.")
     
     # Seleccionar las columnas clave y las originales de débito/crédito (si existen)
     columnas_clave = ['fecha', 'monto', 'concepto', 'numero_movimiento']
@@ -1325,7 +1325,7 @@ def realizar_conciliacion(extracto_file, auxiliar_file, mes_conciliacion, invert
         extracto_df[columnas_a_mostrar].head(5),
         use_container_width=True
     )
-    st.write(f"Tipos de datos (Dtypes) del Extracto Bancario: \n{extracto_df[columnas_a_mostrar].dtypes}")
+    #st.write(f"Tipos de datos (Dtypes) del Extracto Bancario: \n{extracto_df[columnas_a_mostrar].dtypes}")
 
     # Verificar si la columna 'monto' tiene valores diferentes de cero
     monto_cero = (extracto_df['monto'].abs() < 0.01).all() if 'monto' in extracto_df.columns else True
@@ -1339,9 +1339,9 @@ def realizar_conciliacion(extracto_file, auxiliar_file, mes_conciliacion, invert
         auxiliar_df = estandarizar_fechas(auxiliar_df, "Libro Auxiliar", mes_conciliacion=mes_conciliacion)
 
     # Mostrar resúmenes
-    st.subheader("Resumen de datos cargados")
-    st.write(f"Extracto bancario: {len(extracto_df)} movimientos")
-    st.write(f"Libro auxiliar: {len(auxiliar_df)} movimientos")
+    #st.subheader("Resumen de datos cargados")
+    #st.write(f"Extracto bancario: {len(extracto_df)} movimientos")
+    #st.write(f"Libro auxiliar: {len(auxiliar_df)} movimientos")
 
     # Realizar conciliación
     resultados_df = conciliar_banco_completo(extracto_df, auxiliar_df)
