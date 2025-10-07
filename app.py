@@ -405,25 +405,30 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
             except (ValueError, TypeError):
                 # Manejar fechas sin año para Extracto
                 try:
-                    partes = fecha_str.split('/')
-                    if len(partes) == 2:
-                        comp1, comp2 = map(int, partes[:2])
-                        
-                        if formato_fecha == "DD/MM/AAAA":
-                            dia, mes = comp1, comp2
-                        else:  # MM/DD/AAAA o desconocido (usar heurística)
-                            # Heurística original que podría ser ambigua:
-                            dia, mes = comp2, comp1 if comp2 <= 31 and comp1 <= 12 else comp1, comp2
+                    partes = fecha_str.split('/')
+                    if len(partes) == 2:
+                        comp1, comp2 = map(int, partes[:2])
+                        
+                        # 💡 LÓGICA CORREGIDA para Fechas sin Año:
+                        if formato_fecha == "DD/MM/AAAA" or comp1 > 12: # Si el primer componente es > 12, es casi seguro el día.
+                            dia, mes = comp1, comp2 # Asume DD/MM
+                        elif formato_fecha == "MM/DD/AAAA" or comp2 > 12: # Si el segundo componente es > 12.
+                            dia, mes = comp2, comp1 # Asume MM/DD
+                        else: # Si es ambiguo (ej. 02/05), respetamos el formato detectado o asumimos DD/MM (para ser consistente con el Auxiliar)
+                            dia, mes = comp1, comp2 
+                            if formato_fecha == "MM/DD/AAAA": # Forzamos la ambigüedad al formato detectado
+                                dia, mes = comp2, comp1
 
-                        # Forzar mes_conciliacion para extracto
-                        if mes_conciliacion:
-                            mes = mes_conciliacion
 
-                        if 1 <= dia <= 31 and 1 <= mes <= 12:
-                            return pd.Timestamp(year=año_base, month=mes, day=dia)
-                    return pd.NaT
-                except (ValueError, IndexError):
-                    return pd.NaT
+                        # Forzar mes_conciliacion para extracto
+                        if mes_conciliacion:
+                            mes = mes_conciliacion
+
+                        if 1 <= dia <= 31 and 1 <= mes <= 12:
+                            return pd.Timestamp(year=año_base, month=mes, day=dia)
+                    return pd.NaT
+                except (ValueError, IndexError):
+                    return pd.NaT
 
         # SI estamos procesando el Extracto y ya tenemos un Auxiliar procesado (y correcto), 
         # usamos el año del Auxiliar para el año base.
