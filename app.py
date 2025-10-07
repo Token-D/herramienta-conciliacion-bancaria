@@ -1021,6 +1021,12 @@ def conciliar_banco_completo(extracto_df, auxiliar_df):
         resultados_agrup_ext
     ], ignore_index=True)
     
+    # 🌟 SOLUCIÓN DEFINITIVA: FILTRAR MONTO CERO ANTES DE DEVOLVER EL RESULTADO FINAL 🌟
+    if 'monto' in resultados_finales.columns and not resultados_finales.empty:
+        # Usamos redondeo a 2 decimales para eliminar montos exactamente cero o residuos de punto flotante
+        # Esto elimina los registros de monto cero que vienen del Auxiliar
+        resultados_finales = resultados_finales[resultados_finales['monto'].abs().round(2) != 0.00].copy()
+    
     # Eliminar columnas auxiliares antes de devolver los resultados finales
     if 'index_original' in resultados_finales.columns:
         resultados_finales = resultados_finales.drop(['index_original', 'tipo_registro'], axis=1)
