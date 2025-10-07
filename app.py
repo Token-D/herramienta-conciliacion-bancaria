@@ -469,9 +469,9 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
         # Reportar fechas inválidas
         fechas_invalidas = df['fecha'].isna().sum()
             if fechas_invalidas > 0:
-            # st.warning(f"Se encontraron {fechas_invalidas} fechas inválidas en {nombre_archivo}.")
-            # st.write("Ejemplos de fechas inválidas:")
-            # st.write(df[df['fecha'].isna()][['fecha_original', 'fecha_str']].head())
+            st.warning(f"Se encontraron {fechas_invalidas} fechas inválidas en {nombre_archivo}.")
+         # st.write("Ejemplos de fechas inválidas:")
+      # st.write(df[df['fecha'].isna()][['fecha_original', 'fecha_str']].head())
 
         # Depuración: Mostrar fechas parseadas
         # st.write(f"Fechas parseadas en {nombre_archivo} (primeras 4):")
