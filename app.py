@@ -88,7 +88,7 @@ def leer_datos_desde_encabezados(archivo, columnas_esperadas, nombre_archivo, ma
             output.seek(0)
             # Actualizar el archivo a usar
             archivo = output
-            st.success(f"Conversión de {nombre_archivo} de .xls a .xlsx completada.")
+            #st.success(f"Conversión de {nombre_archivo} de .xls a .xlsx completada.")
         except Exception as e:
             st.error(f"Error al convertir {nombre_archivo} de .xls a .xlsx: {e}")
             st.stop()
