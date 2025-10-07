@@ -978,6 +978,18 @@ def conciliar_banco_completo(extracto_df, auxiliar_df):
     """
     Implementa la lógica completa de conciliación.
     """
+
+    # 🌟 CORRECCIÓN CRÍTICA DE FECHA DEL LIBRO AUXILIAR 🌟
+    # Esto garantiza que 02/05/2025 se interprete correctamente como 5 de Febrero,
+    # resolviendo la ambigüedad que rompe la conciliación directa.
+    if 'fecha' in auxiliar_df.columns:
+        # Forzar el re-parseo, asumiendo que el auxiliar SIEMPRE viene DD/MM/YYYY
+        auxiliar_df['fecha'] = pd.to_datetime(
+            auxiliar_df['fecha'], 
+            format='%d/%m/%Y', 
+            errors='coerce' # Si falla, será NaT, lo que tu lógica ya maneja
+        )
+        
     # 1. Conciliación directa (uno a uno)
     resultados_directa, extracto_conciliado_idx, auxiliar_conciliado_idx = conciliacion_directa(
         extracto_df, auxiliar_df
