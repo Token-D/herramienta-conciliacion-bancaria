@@ -327,37 +327,39 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
             if pd.isna(fecha_str) or fecha_str in ['', 'nan', 'NaT', 'None']:
                 return pd.NaT
 
-            fecha_str = fecha_str.replace('-', '/').replace('.', '/')
+            # 1. Limpieza de string
+            fecha_str = str(fecha_str).replace('-', '/').replace('.', '/')
+            # Eliminar la hora/tiempo (si existe)
+            fecha_solo = fecha_str.split(' ')[0] 
+
+            # Lista de formatos a probar, priorizando el estándar DD/MM/YYYY 
+            # y luego el formato YYYY/MM/DD que vemos en el archivo de ejemplo.
+            formatos_a_probar = [
+                '%d/%m/%Y', # El formato DD/MM/AAAA que el usuario requiere
+                '%Y/%m/%d'  # El formato YYYY/MM/DD que el archivo CSV realmente tiene (ej. 2025/02/05)
+            ]
             
-            # 1. Eliminar componente de tiempo (ej. '02/05/2025 00:00:00')
-            fecha_solo = fecha_str.split(' ')[0]
-            
-            try:
-                # 💡 SOLUCIÓN FINAL: Usamos el parser flexible, pero FORZAMOS 'dayfirst=True'.
-                # Esto maneja formatos mixtos (como YYYY-MM-DD) y también trata 
-                # a 02/05/2025 como DÍA 2 / MES 5. Si la fecha es ambigua (comp1, comp2 <= 12),
-                # la interpreta como DD/MM.
-                parsed = parse_date(fecha_solo, dayfirst=True)
-                
-                # Opcional: Aseguramos que la fecha no sea el año 2025 si estamos en 2025-2026.
-                # Si la fecha parseada es de hace 10 años, podría ser incorrecta.
-                # Como el auxiliar SIEMPRE tiene el año, esto debería ser muy robusto.
-                
-                return parsed
-                
-            except (ValueError, TypeError, IndexError):
-                # 2. Fallback para fechas sin año (ej. '05/02'), usando el año_base_default
+            for fmt in formatos_a_probar:
                 try:
-                    partes = fecha_solo.split('/')
-                    if len(partes) == 2:
-                        comp1, comp2 = map(int, partes[:2])
-                        dia, mes = comp1, comp2 # Asumiendo DD/MM
-                        
-                        if 1 <= dia <= 31 and 1 <= mes <= 12:
-                            return pd.Timestamp(year=año_base_default, month=mes, day=dia)
-                    return pd.NaT
-                except (ValueError, IndexError):
-                    return pd.NaT
+                    # Usar el parser estricto de Pandas con el formato actual
+                    parsed = pd.to_datetime(fecha_solo, format=fmt, errors='raise')
+                    return parsed
+                except (ValueError, TypeError):
+                    continue # Intentar el siguiente formato
+            
+            # Si ambos formatos estrictos fallan, intentar el fallback para fechas sin año
+            try:
+                # 2. Fallback para fechas sin año (ej. '05/02'), asumiendo DD/MM
+                partes = fecha_solo.split('/')
+                if len(partes) == 2:
+                    comp1, comp2 = map(int, partes[:2])
+                    dia, mes = comp1, comp2 # Asumiendo DD/MM
+                    
+                    if 1 <= dia <= 31 and 1 <= mes <= 12:
+                        return pd.Timestamp(year=año_base_default, month=mes, day=dia)
+                return pd.NaT
+            except (ValueError, IndexError):
+                return pd.NaT
         # ----------------------------------------------------------------------
         # 2. FUNCIÓN DEDICADA PARA EL EXTRACTO BANCARIO (CON LÓGICA COMPLEJA)
         # ----------------------------------------------------------------------
