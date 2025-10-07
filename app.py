@@ -400,10 +400,10 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
 
 
                         # Forzar mes_conciliacion si está definido (SOLO PARA EXTRACTO)
-                        if mes_conciliacion and 1 <= mes <= 12:
+                        #if mes_conciliacion and 1 <= mes <= 12:
                             # Si el mes es el que se está forzando, lo usamos.
                             # El día ya fue determinado arriba, protegiendo el 07 del 02/07.
-                            mes = mes_conciliacion
+                            #mes = mes_conciliacion
 
                         if 1 <= dia <= 31 and 1 <= mes <= 12:
                             return pd.Timestamp(year=año, month=mes, day=dia)
@@ -411,9 +411,12 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
                 # Fallback genérico si el formato no se detectó
                 parsed = parse_date(fecha_str, dayfirst=True, fuzzy=True)
 
-                # Ajustar mes si mes_conciliacion está definido (SOLO PARA EXTRACTO)
-                if mes_conciliacion and parsed.month != mes_conciliacion:
-                    return pd.Timestamp(year=parsed.year, month=mes_conciliacion, day=parsed.day)
+                # Ajustar AÑO si mes_conciliacion está definido (Lógica de Año Base)
+                if mes_conciliacion:
+                    # Si el mes parseado es posterior al mes de conciliación Y es del año base,
+                    # asumimos que la fecha pertenece al año anterior (ej. conciliando Feb 2025, fecha es Mar 2025 -> debe ser Mar 2024)
+                    if parsed.month > mes_conciliacion and parsed.year == año_base:
+                        parsed = parsed.replace(year=parsed.year - 1)
 
                 return parsed
             except (ValueError, TypeError):
