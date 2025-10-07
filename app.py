@@ -382,13 +382,27 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
                             if len(partes[2]) == 2:
                                 año += 2000 if año < 50 else 1900
 
+                        # 💡 CORRECCIÓN CLAVE: Asumir DD/MM para extractos si es ambiguo o formato detectado
                         if formato_fecha == "DD/MM/AAAA":
                             dia, mes = comp1, comp2
-                        else:  # MM/DD/AAAA
+                        elif formato_fecha == "MM/DD/AAAA":
                             dia, mes = comp2, comp1
+                        else:
+                            # Si el formato es desconocido, aplicamos la misma heurística robusta
+                            # que en las fechas sin año para evitar la inversión Día/Mes.
+                            if comp1 > 12: # Si el primer componente es > 12, es casi seguro el día (DD/MM).
+                                dia, mes = comp1, comp2 
+                            elif comp2 > 12: # Si el segundo componente es > 12 (MM/DD).
+                                dia, mes = comp2, comp1
+                            else:
+                                # Si sigue siendo ambiguo (ej. 02/05), asumimos DD/MM (lo más común en la región)
+                                dia, mes = comp1, comp2
+
 
                         # Forzar mes_conciliacion si está definido (SOLO PARA EXTRACTO)
                         if mes_conciliacion and 1 <= mes <= 12:
+                            # Si el mes es el que se está forzando, lo usamos.
+                            # El día ya fue determinado arriba, protegiendo el 07 del 02/07.
                             mes = mes_conciliacion
 
                         if 1 <= dia <= 31 and 1 <= mes <= 12:
