@@ -317,7 +317,7 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
         # Detectar formato (solo para extracto)
         if es_extracto:
             formato_fecha, _ = detectar_formato_fechas(df['fecha_str'])
-            # st.write(f"Formato de fecha detectado en {nombre_archivo}: {formato_fecha}")
+            st.write(f"Formato de fecha detectado en {nombre_archivo}: {formato_fecha}")
 
         
         # ----------------------------------------------------------------------
@@ -469,13 +469,13 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
         # Reportar fechas inválidas
         fechas_invalidas = df['fecha'].isna().sum()
         if fechas_invalidas > 0:
-            # st.warning(f"Se encontraron {fechas_invalidas} fechas inválidas en {nombre_archivo}.")
-            # st.write("Ejemplos de fechas inválidas:")
-            # st.write(df[df['fecha'].isna()][['fecha_original', 'fecha_str']].head())
+            st.warning(f"Se encontraron {fechas_invalidas} fechas inválidas en {nombre_archivo}.")
+            st.write("Ejemplos de fechas inválidas:")
+            st.write(df[df['fecha'].isna()][['fecha_original', 'fecha_str']].head())
 
         # Depuración: Mostrar fechas parseadas
-        # st.write(f"Fechas parseadas en {nombre_archivo} (primeras 4):")
-        # st.write(df[['fecha_original', 'fecha_str', 'fecha']].head(4))
+        st.write(f"Fechas parseadas en {nombre_archivo} (primeras 4):")
+        st.write(df[['fecha_original', 'fecha_str', 'fecha']].head(4))
 
         # Filtrar por mes solo para extracto si se especifica
         if mes_conciliacion and es_extracto:
@@ -1311,7 +1311,7 @@ def realizar_conciliacion(extracto_file, auxiliar_file, mes_conciliacion, invert
     extracto_df = estandarizar_fechas(extracto_df, "Extracto Bancario", mes_conciliacion=None, completar_anio=True, auxiliar_df=auxiliar_df)
 
     st.subheader("🕵️ Análisis de Datos Procesados del Extracto Bancario")
-    st.info("Primeros 5 registros del Extracto Bancario.")
+    st.info("Primeros 5 registros del Extracto Bancario después del procesamiento de encabezados, fechas y montos.")
     
     # Seleccionar las columnas clave y las originales de débito/crédito (si existen)
     columnas_clave = ['fecha', 'monto', 'concepto', 'numero_movimiento']
@@ -1325,51 +1325,7 @@ def realizar_conciliacion(extracto_file, auxiliar_file, mes_conciliacion, invert
         extracto_df[columnas_a_mostrar].head(5),
         use_container_width=True
     )
-    # st.write(f"Tipos de datos (Dtypes) del Extracto Bancario: \n{extracto_df[columnas_a_mostrar].dtypes}")
-
-    # Variables que necesitas verificar
-    columnas_a_validar = {
-        'fecha': 'datetime64[ns]', 
-        'monto': 'float64'
-    }
-
-    # Bandera para saber si hubo errores
-    hubo_errores_dtype = False
-
-    # Itera sobre las columnas que deben estar en el DataFrame (Extracto o Auxiliar)
-    for columna, dtype_esperado in columnas_a_validar.items():
-    
-        # Solo valida si la columna existe en el DataFrame actual (extracto_df o auxiliar_df)
-        if columna in extracto_df.columns:
-            dtype_actual = str(extracto_df[columna].dtype)
-
-            # Validación para FECHA
-            if columna == 'fecha' and not dtype_actual.startswith('datetime'):
-                st.error(
-                    f"⚠️ Error Crítico en Formato de Fechas en el Extracto Bancario:\n"
-                    f"Las fechas no son válidas. Por favor, revisa la columna de fechas."
-                )
-                hubo_errores_dtype = True
-            
-            # Validación para MONTO
-            elif columna == 'monto' and not dtype_actual.startswith('float'):
-                st.error(
-                    f"⚠️ Error Crítico en Formato de Montos en el Extracto Bancario:\n"
-                    f"Los valores en la columna de montos no son numéricos. "
-                    f"Asegúrate de que no contengan comas (',') o símbolos de moneda."
-                )
-                hubo_errores_dtype = True
-
-
-    # Si hubo errores de Dtype, detenemos la ejecución de la conciliación
-    if hubo_errores_dtype:
-        st.stop() # Detiene la ejecución del script de Streamlit para que el usuario pueda corregir.
-
-    # Si no hubo errores, puedes seguir con el st.write actual si quieres, 
-    # o simplemente dejar el código limpio (recomendado).
-
-    # Opcional: Mostrar un mensaje de éxito simple si todo está bien
-    #st.success("✅ La estructura de los datos es correcta y lista para conciliar.")
+    st.write(f"Tipos de datos (Dtypes) del Extracto Bancario: \n{extracto_df[columnas_a_mostrar].dtypes}")
 
     # Verificar si la columna 'monto' tiene valores diferentes de cero
     monto_cero = (extracto_df['monto'].abs() < 0.01).all() if 'monto' in extracto_df.columns else True
@@ -1383,9 +1339,9 @@ def realizar_conciliacion(extracto_file, auxiliar_file, mes_conciliacion, invert
         auxiliar_df = estandarizar_fechas(auxiliar_df, "Libro Auxiliar", mes_conciliacion=mes_conciliacion)
 
     # Mostrar resúmenes
-    # st.subheader("Resumen de datos cargados")
-    # st.write(f"Extracto bancario: {len(extracto_df)} movimientos")
-    # st.write(f"Libro auxiliar: {len(auxiliar_df)} movimientos")
+    st.subheader("Resumen de datos cargados")
+    st.write(f"Extracto bancario: {len(extracto_df)} movimientos")
+    st.write(f"Libro auxiliar: {len(auxiliar_df)} movimientos")
 
     # Realizar conciliación
     resultados_df = conciliar_banco_completo(extracto_df, auxiliar_df)
