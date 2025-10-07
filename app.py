@@ -474,8 +474,8 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
             st.write(df[df['fecha'].isna()][['fecha_original', 'fecha_str']].head())
 
         # Depuración: Mostrar fechas parseadas
-        st.write(f"Fechas parseadas en {nombre_archivo} (primeras 4):")
-        st.write(df[['fecha_original', 'fecha_str', 'fecha']].head(4))
+        #st.write(f"Fechas parseadas en {nombre_archivo} (primeras 4):")
+        #st.write(df[['fecha_original', 'fecha_str', 'fecha']].head(4))
 
         # Filtrar por mes solo para extracto si se especifica
         if mes_conciliacion and es_extracto:
@@ -562,7 +562,7 @@ def procesar_montos(df, nombre_archivo, es_extracto=False, invertir_signos=False
             
         elif es_extracto and banco_seleccionado == "Bancolombia":
             # 🎯 LÓGICA BANCOLOMBIA (Monto único, usa la limpieza de punto decimal)
-            st.info("Bancolombia detectado: Aplicando limpieza de formato numérico (punto decimal) al monto único.")
+            #st.info("Bancolombia detectado: Aplicando limpieza de formato numérico (punto decimal) al monto único.")
             
             df["monto"] = limpiar_monto_bancolombia_generico(df["monto"]).fillna(0)
             
