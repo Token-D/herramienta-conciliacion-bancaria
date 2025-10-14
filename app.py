@@ -1430,7 +1430,7 @@ def realizar_conciliacion(extracto_file, auxiliar_file, mes_conciliacion, invert
     auxiliar_df = estandarizar_fechas(auxiliar_df, "Libro Auxiliar", mes_conciliacion=None)
     extracto_df = estandarizar_fechas(extracto_df, "Extracto Bancario", mes_conciliacion=None, completar_anio=True, auxiliar_df=auxiliar_df)
 
-    if banco_seleccionado == "BBVA":
+    if banco_seleccionado in CONCEPTOS_A_CONSOLIDAR:
         extracto_df = consolidar_gastos_bancarios(extracto_df, banco_seleccionado)
 
     st.subheader("🕵️ Análisis de Datos Procesados del Extracto Bancario")
