@@ -733,6 +733,18 @@ CONCEPTOS_A_CONSOLIDAR = {
         "Nd Cobro Disp Fond Daviplata (Nota Débito)",
         "Reintegro Gravamen Mvto Financiero (Nota Crédito)",
         "Rendimientos financieros (Nota Crédito)",
+    ],
+
+    "Bancolombia": [
+        "COBRO IVA PAGOS AUTOMATICOS",
+        "COMISION PAGO A OTROS BANCOS",
+        "COMISION PAGO A PROVEEDORES",
+        "COMISION PAGO DE NOMINA",
+        "COMISION POR PAGOS A NEQUI",
+        "CUOTA MANEJO SUC VIRT EMPRESA",
+        "IMPTO GOBIERNO 4X1000",
+        "INTERESES DE SOBREGIRO",
+        "IVA CUOTA MANEJO SUC VIRT EMP"
     ]
 }
 
