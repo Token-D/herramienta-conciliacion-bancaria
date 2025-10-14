@@ -713,13 +713,26 @@ CONCEPTOS_A_CONSOLIDAR = {
         "COMISION POR DO", 
         "IVA POR COMISIO", 
     ],
-    # Se pueden agregar otros bancos aquí
     "Bogotá": [
         "Cargo IVA", 
         "Cobro de comision por el uso del Portal Business", 
         "Gravamen Movimientos Financieros",
         "Comision disfon proveedores interno",
         "Comision dispersion de pago de proveedores-Otros",
+    ],
+    "Davivienda": [
+        "Ajuste X Gravamen Movimiento Financier",
+        "Cobro IVA Servicios Financieros",
+        "Cobro Pasarela Cargo Fijo Mensual",
+        "Cobro Servicio Empresarial.",
+        "Cobro Servicio Manejo Portal",
+        "Cobro Servicio Recaudo Nacional.",
+        "Cobro Transf. Enviada Otra Entidad",
+        "Cobro Transferencia A Davivienda",
+        "Descuento Transaccion Entre Ciudades.",
+        "Nd Cobro Disp Fond Daviplata",
+        "Reintegro Gravamen Mvto Financiero",
+        "Rendimientos financieros",
     ]
 }
 
