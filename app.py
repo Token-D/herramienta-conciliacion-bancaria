@@ -716,7 +716,7 @@ CONCEPTOS_A_CONSOLIDAR = {
     # Se pueden agregar otros bancos aquí
     "Bogotá": [
         "Cargo IVA", 
-        "CCobro de comision por el uso del Portal Business", 
+        "Cobro de comision por el uso del Portal Business", 
         "Gravamen Movimientos Financieros",
         "Comision disfon proveedores interno",
         "Comision dispersion de pago de proveedores-Otros",
