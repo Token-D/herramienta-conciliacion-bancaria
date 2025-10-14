@@ -850,7 +850,7 @@ def consolidar_gastos_bancarios(df, banco_seleccionado):
     return df_restante
 
 # Función para encontrar combinaciones que sumen un monto específico
-def encontrar_combinaciones(df, monto_objetivo, tolerancia=0.01, max_combinacion=4):
+def encontrar_combinaciones(df, monto_objetivo, tolerancia=0.09, max_combinacion=4):
     """
     Encuentra combinaciones de valores en df['monto'] que sumen aproximadamente monto_objetivo.
     Restringe la búsqueda a valores del MISMO SIGNO que el objetivo.
