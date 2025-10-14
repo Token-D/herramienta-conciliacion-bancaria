@@ -470,7 +470,7 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
         fechas_invalidas = df['fecha'].isna().sum()
         if fechas_invalidas > 0:
             st.warning(f"Se encontraron {fechas_invalidas} fechas inválidas en {nombre_archivo}.")
-            st.write("Ejemplos de fechas inválidas:")
+            # st.write("Ejemplos de fechas inválidas:")
             st.write(df[df['fecha'].isna()][['fecha_original', 'fecha_str']].head())
 
         # Depuración: Mostrar fechas parseadas
@@ -775,7 +775,7 @@ def consolidar_gastos_bancarios(df, banco_seleccionado):
     
     nuevas_filas_consolidadas = []
     
-    st.subheader(f"⚙️ Consolidación de Gastos Bancarios: {banco_seleccionado}")
+    # st.subheader(f"⚙️ Consolidación de Gastos Bancarios: {banco_seleccionado}")
 
     for concepto_clave in conceptos_a_consolidar:
         # 1. Filtrar movimientos que coinciden EXACTAMENTE
@@ -788,7 +788,7 @@ def consolidar_gastos_bancarios(df, banco_seleccionado):
         # 2. Verificar que los montos sean negativos (gastos)
         # Solo consolidamos si la mayoría de los montos son negativos
         if (filas_a_consolidar['monto'] > 0).sum() > (filas_a_consolidar['monto'] < 0).sum():
-            st.warning(f"El concepto '{concepto_clave}' contiene más créditos que débitos. Se omitió la consolidación para evitar errores de signo.")
+            # st.warning(f"El concepto '{concepto_clave}' contiene más créditos que débitos. Se omitió la consolidación para evitar errores de signo.")
             continue
             
         # 3. Calcular la sumatoria de montos
@@ -849,8 +849,9 @@ def consolidar_gastos_bancarios(df, banco_seleccionado):
     df_restante = df_restante.drop(columns=['concepto_str'], errors='ignore')
     return df_restante
 
+
 # Función para encontrar combinaciones que sumen un monto específico
-def encontrar_combinaciones(df, monto_objetivo, tolerancia=0.09, max_combinacion=4):
+def encontrar_combinaciones(df, monto_objetivo, tolerancia=0.09, max_combinacion=10):
     """
     Encuentra combinaciones de valores en df['monto'] que sumen aproximadamente monto_objetivo.
     Restringe la búsqueda a valores del MISMO SIGNO que el objetivo.
@@ -1546,7 +1547,7 @@ if extracto_file and auxiliar_file:
         st.download_button(
             label="Descargar Resultados en Excel",
             data=excel_data,
-            file_name="resultados_conciliacion.xlsx",
+            file_name=f"resultados_conciliacion_{banco_seleccionado}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
 
