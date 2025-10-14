@@ -705,7 +705,122 @@ def procesar_montos(df, nombre_archivo, es_extracto=False, invertir_signos=False
             st.info(f"Se eliminaron {filas_antes - filas_despues} registros con monto cero (incluyendo vacíos/no numéricos) del Extracto Bancario. ✅")
             
     return df
+
+# Diccionario de conceptos de gastos bancarios a consolidar por banco
+CONCEPTOS_A_CONSOLIDAR = {
+    "BBVA": [
+        "IMPUESTO DECRET", 
+        "COMISION POR DO", 
+        "IVA POR COMISIO", 
+        "CARGO DOMICILIA"
+    ],
+    # Se pueden agregar otros bancos aquí
+    "Davivienda": [
+        # ... (ejemplo: 'GMF 4X1000', 'COMISION RETIRO')
+    ]
+}
+
+def consolidar_gastos_bancarios(df, banco_seleccionado):
+    """
+    Agrupa movimientos específicos por concepto, consolida su monto y fecha de cierre de mes,
+    y reemplaza las filas individuales por la fila consolidada.
+    """
     
+    if banco_seleccionado not in CONCEPTOS_A_CONSOLIDAR:
+        # Si el banco no tiene reglas de consolidación definidas, no hacer nada.
+        return df
+
+    conceptos_a_consolidar = CONCEPTOS_A_CONSOLIDAR[banco_seleccionado]
+    
+    if not conceptos_a_consolidar:
+        return df
+        
+    df_consolidado = pd.DataFrame()
+    df_restante = df.copy() # Copia de trabajo para eliminar filas
+    
+    # Aseguramos que la columna 'concepto' sea string para la coincidencia exacta
+    if 'concepto' not in df.columns:
+        st.warning(f"No se encontró la columna 'concepto' en el extracto de {banco_seleccionado}. La consolidación de gastos no puede ejecutarse.")
+        return df
+        
+    df_restante['concepto_str'] = df_restante['concepto'].astype(str).str.strip()
+    
+    nuevas_filas_consolidadas = []
+    
+    st.subheader(f"⚙️ Consolidación de Gastos Bancarios: {banco_seleccionado}")
+
+    for concepto_clave in conceptos_a_consolidar:
+        # 1. Filtrar movimientos que coinciden EXACTAMENTE
+        filas_a_consolidar = df_restante[df_restante['concepto_str'] == concepto_clave]
+        
+        if filas_a_consolidar.empty:
+            # st.info(f"No se encontraron movimientos para el concepto '{concepto_clave}'.")
+            continue
+            
+        # 2. Verificar que los montos sean negativos (gastos)
+        # Solo consolidamos si la mayoría de los montos son negativos
+        if (filas_a_consolidar['monto'] > 0).sum() > (filas_a_consolidar['monto'] < 0).sum():
+            st.warning(f"El concepto '{concepto_clave}' contiene más créditos que débitos. Se omitió la consolidación para evitar errores de signo.")
+            continue
+            
+        # 3. Calcular la sumatoria de montos
+        monto_consolidado = filas_a_consolidar['monto'].sum()
+        
+        # 4. Determinar la fecha de consolidación (Último día del mes de los registros)
+        # Si la columna 'fecha' es NaT para todos, usaremos la fecha actual como fallback.
+        fechas_validas = filas_a_consolidar['fecha'].dropna()
+        
+        if fechas_validas.empty:
+            # Fallback a fecha actual
+            fecha_consolidada = pd.Timestamp.now().normalize()
+        else:
+            # Último día del mes de la FECHA MÁXIMA encontrada en el grupo.
+            ultima_fecha = fechas_validas.max().normalize()
+            
+            # Calcular el último día del mes (Fin del mes)
+            # Primero día del mes siguiente - 1 día
+            proximo_mes = ultima_fecha.replace(day=28) + pd.Timedelta(days=4) 
+            fecha_consolidada = proximo_mes.replace(day=1) - pd.Timedelta(days=1)
+        
+        # 5. Crear la nueva fila consolidada
+        nueva_fila = {
+            'fecha': fecha_consolidada,
+            'tercero': '',
+            'concepto': f"Gastos Bancarios - {concepto_clave}",
+            'numero_movimiento': '', # Queda vacío
+            'monto': monto_consolidado,
+            'origen': 'Banco' # Este campo solo es relevante si se usa para el resultado final
+            # Otros campos se llenan con NaN o un valor predeterminado si es necesario
+        }
+        
+        nuevas_filas_consolidadas.append(nueva_fila)
+        
+        # 6. Eliminar las filas individuales del DataFrame restante
+        df_restante = df_restante.drop(filas_a_consolidar.index, errors='ignore')
+        
+        st.success(f"✅ Se consolidaron {len(filas_a_consolidar)} movimientos de '{concepto_clave}'. Monto total: {monto_consolidado:,.2f}. Fecha: {fecha_consolidada.strftime('%d/%m/%Y')}")
+
+    # 7. Concatenar las nuevas filas con el DataFrame restante
+    if nuevas_filas_consolidadas:
+        df_nuevos = pd.DataFrame(nuevas_filas_consolidadas)
+        # Asegurarse de que las columnas coincidan para la concatenación
+        columnas_comunes = list(set(df_restante.columns) & set(df_nuevos.columns))
+        df_nuevos = df_nuevos[columnas_comunes]
+        df_restante = df_restante.drop(columns=['concepto_str'], errors='ignore')
+
+        # Aseguramos que las columnas de df_nuevos existan en df_restante antes de concatenar
+        for col in df_restante.columns:
+            if col not in df_nuevos.columns:
+                df_nuevos[col] = np.nan
+        
+        df_final = pd.concat([df_restante.drop(columns=['concepto_str'], errors='ignore'), df_nuevos[df_restante.drop(columns=['concepto_str'], errors='ignore').columns]], ignore_index=True)
+
+        return df_final
+    
+    # Si no se consolidó nada
+    df_restante = df_restante.drop(columns=['concepto_str'], errors='ignore')
+    return df_restante
+
 # Función para encontrar combinaciones que sumen un monto específico
 def encontrar_combinaciones(df, monto_objetivo, tolerancia=0.01, max_combinacion=4):
     """
@@ -1311,6 +1426,9 @@ def realizar_conciliacion(extracto_file, auxiliar_file, mes_conciliacion, invert
     # Estandarizar fechas
     auxiliar_df = estandarizar_fechas(auxiliar_df, "Libro Auxiliar", mes_conciliacion=None)
     extracto_df = estandarizar_fechas(extracto_df, "Extracto Bancario", mes_conciliacion=None, completar_anio=True, auxiliar_df=auxiliar_df)
+
+    if banco_seleccionado == "BBVA":
+        extracto_df = consolidar_gastos_bancarios(extracto_df, banco_seleccionado)
 
     st.subheader("🕵️ Análisis de Datos Procesados del Extracto Bancario")
     st.info("Primeros 5 registros del Extracto Bancario.")
