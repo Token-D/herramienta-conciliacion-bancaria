@@ -714,8 +714,12 @@ CONCEPTOS_A_CONSOLIDAR = {
         "IVA POR COMISIO", 
     ],
     # Se pueden agregar otros bancos aquí
-    "Davivienda": [
-        # ... (ejemplo: 'GMF 4X1000', 'COMISION RETIRO')
+    "Bogotá": [
+        "Cargo IVA", 
+        "CCobro de comision por el uso del Portal Business", 
+        "Gravamen Movimientos Financieros",
+        "Comision disfon proveedores interno",
+        "Comision dispersion de pago de proveedores-Otros",
     ]
 }
 
