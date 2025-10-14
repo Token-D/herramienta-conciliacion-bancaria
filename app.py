@@ -712,7 +712,6 @@ CONCEPTOS_A_CONSOLIDAR = {
         "IMPUESTO DECRET", 
         "COMISION POR DO", 
         "IVA POR COMISIO", 
-        "CARGO DOMICILIA"
     ],
     # Se pueden agregar otros bancos aquí
     "Davivienda": [
