@@ -469,9 +469,9 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
         # Reportar fechas inválidas
         fechas_invalidas = df['fecha'].isna().sum()
         if fechas_invalidas > 0:
-            st.warning(f"Se encontraron {fechas_invalidas} fechas inválidas en {nombre_archivo}.")
+            # st.warning(f"Se encontraron {fechas_invalidas} fechas inválidas en {nombre_archivo}.")
             # st.write("Ejemplos de fechas inválidas:")
-            st.write(df[df['fecha'].isna()][['fecha_original', 'fecha_str']].head())
+            # st.write(df[df['fecha'].isna()][['fecha_original', 'fecha_str']].head())
 
         # Depuración: Mostrar fechas parseadas
         #st.write(f"Fechas parseadas en {nombre_archivo} (primeras 4):")
@@ -826,7 +826,7 @@ def consolidar_gastos_bancarios(df, banco_seleccionado):
         # 6. Eliminar las filas individuales del DataFrame restante
         df_restante = df_restante.drop(filas_a_consolidar.index, errors='ignore')
         
-        st.success(f"✅ Se consolidaron {len(filas_a_consolidar)} movimientos de '{concepto_clave}'. Monto total: {monto_consolidado:,.2f}. Fecha: {fecha_consolidada.strftime('%d/%m/%Y')}")
+        # st.success(f"✅ Se consolidaron {len(filas_a_consolidar)} movimientos de '{concepto_clave}'. Monto total: {monto_consolidado:,.2f}. Fecha: {fecha_consolidada.strftime('%d/%m/%Y')}")
 
     # 7. Concatenar las nuevas filas con el DataFrame restante
     if nuevas_filas_consolidadas:
