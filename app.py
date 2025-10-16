@@ -709,9 +709,13 @@ def procesar_montos(df, nombre_archivo, es_extracto=False, invertir_signos=False
 # Diccionario de conceptos de gastos bancarios a consolidar por banco
 CONCEPTOS_A_CONSOLIDAR = {
     "BBVA": [
-        "IMPUESTO DECRET", 
-        "COMISION POR DO", 
-        "IVA POR COMISIO", 
+        "IVA POR COMISION POR DOMICIL", 
+        "IVA COMISION ADMON NET CASH", 
+        "IVA COMISION PAGO REALIZAD N", 
+        "COMISION ADMON NET CASH",
+        "COMISION PAGO REALIZADO NETC",
+        "COMISION POR DOMICILIACION",
+        "CARGO POR IMPUESTO 4X1.000",
     ],
     "Bogotá": [
         "Cargo IVA", 
