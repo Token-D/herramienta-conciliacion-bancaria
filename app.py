@@ -362,33 +362,32 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
                 return pd.NaT
 
             try:
-                # Normalizar separadores
-                fecha_str = fecha_str.replace('-', '/').replace('.', '/')
+                # Normalizar separadores y asegurar que sea un string
+                fecha_str = str(fecha_str).replace('-', '/').replace('.', '/')
                 
                 # ---------------------------------------------------------------
-                # 🎯 FIX ESPECÍFICO para BBVA (Inversión Día/Año)
-                # DATO: [Día o Año]/[Mes]/[Año o Día] (ej: 25/09/01)
-                # DESEADO: [Día=Tercer componente]/[Mes=Segundo componente]/[Año=Primer componente] (ej: 01/09/25)
+                # 🎯 FIX ESPECÍFICO para BBVA (Año Corto/Mes/Día)
+                # Ejemplo: 25/09/01 debe ser 01/09/2025
                 # ---------------------------------------------------------------
                 if banco_seleccionado == "BBVA":
                     partes = fecha_str.split('/')
                     if len(partes) == 3:
                         try:
-                            # 1. Invertir componentes: (Dia=3ro, Mes=2do, Año=1ro)
-                            dia = int(partes[2])   
-                            mes = int(partes[1])   
+                            # La estructura es [Año Corto (25)] / [Mes (09)] / [Día (01)]
                             año_corto = int(partes[0]) 
+                            mes = int(partes[1])   
+                            dia = int(partes[2])   
 
-                            # 2. Corregir el año de 2 a 4 dígitos (ventana: 20xx si < 50)
+                            # 2. Corregir el año de 2 a 4 dígitos: 25 -> 2025
+                            # Asume 00-49 es 20xx.
                             año = año_corto + (2000 if año_corto < 50 else 1900)
 
+                            # 3. Validar y RETORNAR INMEDIATAMENTE
                             if 1 <= dia <= 31 and 1 <= mes <= 12:
-                                # Retorna la fecha corregida para BBVA
                                 return pd.Timestamp(year=año, month=mes, day=dia)
-                            # Si la fecha invertida no es válida, pasa a la lógica general
-                            pass 
+                            
                         except Exception:
-                            # Si no son números, pasa a la lógica general
+                            # Si falla la conversión (ej: no son números), pasamos al parser genérico
                             pass 
 
                 # Usar formato detectado (Lógica original si no es BBVA o BBVA falló la inversión)
