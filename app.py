@@ -294,7 +294,7 @@ def detectar_formato_fechas(fechas_str, porcentaje_analisis=0.6):
 
     return formato_predominante, año_presente
 
-def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_anio=False, auxiliar_df=None, banco_seleccionado="Generico"):
+def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_anio=False, auxiliar_df=None):
     """
     Convierte la columna 'fecha' a datetime64, con lógica de parsing separada.
     """
@@ -317,6 +317,7 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
         # Detectar formato (solo para extracto)
         if es_extracto:
             formato_fecha, _ = detectar_formato_fechas(df['fecha_str'])
+            #st.write(f"Formato de fecha detectado en {nombre_archivo}: {formato_fecha}")
 
         
         # ----------------------------------------------------------------------
@@ -331,23 +332,28 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
             # Eliminar la hora/tiempo (si existe)
             fecha_solo = fecha_str.split(' ')[0] 
 
+            # Lista de formatos a probar, priorizando el estándar DD/MM/YYYY 
+            # y luego el formato YYYY/MM/DD que vemos en el archivo de ejemplo.
             formatos_a_probar = [
-                '%d/%m/%Y', 
-                '%Y/%m/%d'  
+                '%d/%m/%Y', # El formato DD/MM/AAAA que el usuario requiere
+                '%Y/%m/%d'  # El formato YYYY/MM/DD que el archivo CSV realmente tiene (ej. 2025/02/05)
             ]
             
             for fmt in formatos_a_probar:
                 try:
+                    # Usar el parser estricto de Pandas con el formato actual
                     parsed = pd.to_datetime(fecha_solo, format=fmt, errors='raise')
                     return parsed
                 except (ValueError, TypeError):
-                    continue 
+                    continue # Intentar el siguiente formato
             
+            # Si ambos formatos estrictos fallan, intentar el fallback para fechas sin año
             try:
+                # 2. Fallback para fechas sin año (ej. '05/02'), asumiendo DD/MM
                 partes = fecha_solo.split('/')
                 if len(partes) == 2:
                     comp1, comp2 = map(int, partes[:2])
-                    dia, mes = comp1, comp2 
+                    dia, mes = comp1, comp2 # Asumiendo DD/MM
                     
                     if 1 <= dia <= 31 and 1 <= mes <= 12:
                         return pd.Timestamp(year=año_base_default, month=mes, day=dia)
@@ -355,51 +361,25 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
             except (ValueError, IndexError):
                 return pd.NaT
         # ----------------------------------------------------------------------
-        # 2. FUNCIÓN DEDICADA PARA EL EXTRACTO BANCARIO (CON LÓGICA DE BBVA)
+        # 2. FUNCIÓN DEDICADA PARA EL EXTRACTO BANCARIO (CON LÓGICA COMPLEJA)
         # ----------------------------------------------------------------------
-        def parsear_fecha_extracto(fecha_str, formato_fecha, banco_seleccionado):
+        def parsear_fecha_extracto(fecha_str, formato_fecha):
             if pd.isna(fecha_str) or fecha_str in ['', 'nan', 'NaT']:
                 return pd.NaT
 
             try:
-                # Normalizar separadores y asegurar que sea un string
-                fecha_str = str(fecha_str).replace('-', '/').replace('.', '/')
-                
-                # ---------------------------------------------------------------
-                # 🎯 FIX ESPECÍFICO para BBVA (Año Corto/Mes/Día)
-                # Ejemplo: 25/09/01 debe ser 01/09/2025
-                # ---------------------------------------------------------------
-                if banco_seleccionado == "BBVA":
-                    partes = fecha_str.split('/')
-                    if len(partes) == 3:
-                        try:
-                            # La estructura es [Año Corto (25)] / [Mes (09)] / [Día (01)]
-                            año_corto = int(partes[0]) 
-                            mes = int(partes[1])   
-                            dia = int(partes[2])   
+                # Normalizar separadores
+                fecha_str = fecha_str.replace('-', '/').replace('.', '/')
 
-                            # 2. Corregir el año de 2 a 4 dígitos: 25 -> 2025
-                            # Asume 00-49 es 20xx.
-                            año = año_corto + (2000 if año_corto < 50 else 1900)
-
-                            # 3. Validar y RETORNAR INMEDIATAMENTE
-                            if 1 <= dia <= 31 and 1 <= mes <= 12:
-                                return pd.Timestamp(year=año, month=mes, day=dia)
-                            
-                        except Exception:
-                            # Si falla la conversión (ej: no son números), pasamos al parser genérico
-                            pass 
-
-                # Usar formato detectado (Lógica original si no es BBVA o BBVA falló la inversión)
+                # Usar formato detectado
                 if formato_fecha != "desconocido":
                     partes = fecha_str.split('/')
                     if len(partes) >= 2:
                         comp1, comp2 = map(int, partes[:2])
                         año = año_base
                         if len(partes) == 3:
-                            año_str = partes[2]
-                            año = int(año_str)
-                            if len(año_str) == 2:
+                            año = int(partes[2])
+                            if len(partes[2]) == 2:
                                 año += 2000 if año < 50 else 1900
 
                         # 💡 CORRECCIÓN CLAVE: Asumir DD/MM para extractos si es ambiguo o formato detectado
@@ -408,13 +388,22 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
                         elif formato_fecha == "MM/DD/AAAA":
                             dia, mes = comp2, comp1
                         else:
-                            # Si el formato es desconocido, se usa heurística robusta
-                            if comp1 > 12: 
+                            # Si el formato es desconocido, aplicamos la misma heurística robusta
+                            # que en las fechas sin año para evitar la inversión Día/Mes.
+                            if comp1 > 12: # Si el primer componente es > 12, es casi seguro el día (DD/MM).
                                 dia, mes = comp1, comp2 
-                            elif comp2 > 12: 
+                            elif comp2 > 12: # Si el segundo componente es > 12 (MM/DD).
                                 dia, mes = comp2, comp1
                             else:
+                                # Si sigue siendo ambiguo (ej. 02/05), asumimos DD/MM (lo más común en la región)
                                 dia, mes = comp1, comp2
+
+
+                        # Forzar mes_conciliacion si está definido (SOLO PARA EXTRACTO)
+                        #if mes_conciliacion and 1 <= mes <= 12:
+                            # Si el mes es el que se está forzando, lo usamos.
+                            # El día ya fue determinado arriba, protegiendo el 07 del 02/07.
+                            #mes = mes_conciliacion
 
                         if 1 <= dia <= 31 and 1 <= mes <= 12:
                             return pd.Timestamp(year=año, month=mes, day=dia)
@@ -424,6 +413,8 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
 
                 # Ajustar AÑO si mes_conciliacion está definido (Lógica de Año Base)
                 if mes_conciliacion:
+                    # Si el mes parseado es posterior al mes de conciliación Y es del año base,
+                    # asumimos que la fecha pertenece al año anterior (ej. conciliando Feb 2025, fecha es Mar 2025 -> debe ser Mar 2024)
                     if parsed.month > mes_conciliacion and parsed.year == año_base:
                         parsed = parsed.replace(year=parsed.year - 1)
 
@@ -435,13 +426,13 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
                     if len(partes) == 2:
                         comp1, comp2 = map(int, partes[:2])
                         
-                        if formato_fecha == "DD/MM/AAAA" or comp1 > 12: 
+                        if formato_fecha == "DD/MM/AAAA" or comp1 > 12: # Si el primer componente es > 12, es casi seguro el día.
+                            dia, mes = comp1, comp2 # Asume DD/MM
+                        elif formato_fecha == "MM/DD/AAAA" or comp2 > 12: # Si el segundo componente es > 12.
+                            dia, mes = comp2, comp1 # Asume MM/DD
+                        else: # Si es ambiguo (ej. 02/05), asumimos DD/MM (para ser consistente con Auxiliar)
                             dia, mes = comp1, comp2 
-                        elif formato_fecha == "MM/DD/AAAA" or comp2 > 12: 
-                            dia, mes = comp2, comp1 
-                        else: 
-                            dia, mes = comp1, comp2 
-                            if formato_fecha == "MM/DD/AAAA": 
+                            if formato_fecha == "MM/DD/AAAA": # Forzamos la ambigüedad al formato detectado
                                 dia, mes = comp2, comp1
 
                         # Forzar mes_conciliacion para extracto
@@ -454,30 +445,39 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
                 except (ValueError, IndexError):
                     return pd.NaT
 
-        # Lógica para establecer el año base (Sin cambios)
+        # SI estamos procesando el Extracto y ya tenemos un Auxiliar procesado (y correcto), 
+        # usamos el año del Auxiliar para el año base.
         if es_extracto and auxiliar_df is not None and 'fecha' in auxiliar_df.columns:
             años_validos = auxiliar_df['fecha'].dropna().apply(lambda x: x.year if pd.notna(x) else None)
             año_base = años_validos.mode()[0] if not años_validos.empty else año_base_default
+        # Nota: Si se procesa primero el Auxiliar, este bloque se omite. El Extracto será
+        # procesado después y tendrá el año base correcto.
+
 
         # ----------------------------------------------------------------------
-        # APLICAR EL PARSEO DE FECHAS (Se ajusta la llamada)
+        # APLICAR EL PARSEO DE FECHAS
         # ----------------------------------------------------------------------
         if es_extracto:
-            # ❗ IMPORTANTE: Aquí se pasa el banco_seleccionado a la función anidada.
             df['fecha'] = df['fecha_str'].apply(
-                lambda x: parsear_fecha_extracto(x, formato_fecha, banco_seleccionado)
+                lambda x: parsear_fecha_extracto(x, formato_fecha)
             )
         else: # Libro Auxiliar
             df['fecha'] = df['fecha_str'].apply(
                 lambda x: parsear_fecha_auxiliar(x)
             )
 
-        # ... (Resto del código de manejo de fechas inválidas y filtros, sin cambios) ...
+        # Reportar fechas inválidas
         fechas_invalidas = df['fecha'].isna().sum()
         if fechas_invalidas > 0:
             st.warning(f"Se encontraron {fechas_invalidas} fechas inválidas en {nombre_archivo}.")
+            # st.write("Ejemplos de fechas inválidas:")
             st.write(df[df['fecha'].isna()][['fecha_original', 'fecha_str']].head())
 
+        # Depuración: Mostrar fechas parseadas
+        #st.write(f"Fechas parseadas en {nombre_archivo} (primeras 4):")
+        #st.write(df[['fecha_original', 'fecha_str', 'fecha']].head(4))
+
+        # Filtrar por mes solo para extracto si se especifica
         if mes_conciliacion and es_extracto:
             filas_antes = len(df)
             df = df[df['fecha'].dt.month == mes_conciliacion]
@@ -485,6 +485,9 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
                 meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
                          'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
                 st.info(f"Se filtraron {filas_antes - len(df)} registros fuera del mes {meses[mes_conciliacion-1]} en {nombre_archivo}.")
+                if filas_antes - len(df) > 0:
+                    st.write(f"Ejemplos de fechas filtradas (no en {meses[mes_conciliacion-1]}):")
+                    st.write(df[df['fecha'].dt.month != mes_conciliacion][['fecha_original', 'fecha_str', 'fecha']].head())
 
         # Limpiar columnas temporales
         df = df.drop(['fecha_str'], axis=1, errors='ignore')
