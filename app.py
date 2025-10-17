@@ -729,151 +729,198 @@ def procesar_montos(df, nombre_archivo, es_extracto=False, invertir_signos=False
 
 # Diccionario de conceptos de gastos bancarios a consolidar por banco
 CONCEPTOS_A_CONSOLIDAR = {
-    "BBVA": [
-        "IVA POR COMISION POR DOMICIL", 
-        "IVA COMISION ADMON NET CASH", 
-        "IVA COMISION PAGO REALIZAD N", 
-        "COMISION ADMON NET CASH",
-        "COMISION PAGO REALIZADO NETC",
-        "COMISION POR DOMICILIACION",
-        "CARGO POR IMPUESTO 4X1.000",
-    ],
-    "Bogotá": [
-        "Cargo IVA", 
-        "Cobro de comision por el uso del Portal Business", 
-        "Gravamen Movimientos Financieros",
-        "Comision disfon proveedores interno",
-        "Comision dispersion de pago de proveedores-Otros",
-    ],
-    "Davivienda": [
-        "Ajuste X Gravamen Movimiento Financier (Nota Débito)",
-        "Cobro IVA Servicios Financieros (Nota Débito)",
-        "Cobro Pasarela Cargo Fijo Mensual (Nota Débito)",
-        "Cobro Servicio Empresarial. (Nota Débito)",
-        "Cobro Servicio Manejo Portal (Nota Débito)",
-        "Cobro Servicio Recaudo Nacional. (Nota Débito)",
-        "Cobro Transf. Enviada Otra Entidad (Nota Débito)",
-        "Cobro Transferencia A Davivienda (Nota Débito)",
-        "Descuento Transaccion Entre Ciudades. (Nota Débito)",
-        "Nd Cobro Disp Fond Daviplata (Nota Débito)",
-        "Reintegro Gravamen Mvto Financiero (Nota Crédito)",
-        "Rendimientos financieros (Nota Crédito)",
-    ],
-
-    "Bancolombia": [
-        "COBRO IVA PAGOS AUTOMATICOS",
-        "COMISION PAGO A OTROS BANCOS",
-        "COMISION PAGO A PROVEEDORES",
-        "COMISION PAGO DE NOMINA",
-        "COMISION POR PAGOS A NEQUI",
-        "CUOTA MANEJO SUC VIRT EMPRESA",
-        "IMPTO GOBIERNO 4X1000",
-        "INTERESES DE SOBREGIRO",
-        "IVA CUOTA MANEJO SUC VIRT EMP"
-    ]
+    "BBVA": {
+        "IVA": [
+            "IVA POR COMISION POR DOMICIL", 
+            "IVA COMISION ADMON NET CASH", 
+            "IVA COMISION PAGO REALIZAD N", 
+        ],
+        "Comisión": [
+            "COMISION ADMON NET CASH",
+            "COMISION PAGO REALIZADO NETC",
+            "COMISION POR DOMICILIACION",
+        ],
+        "GMF": [
+            "CARGO POR IMPUESTO 4X1.000",
+        ]
+    },
+    "Bogotá": {
+        # Usaré la estructura nueva con los conceptos planos anteriores por defecto
+        # En cuanto me pases la agrupación, la actualizo.
+        "Gastos Bancarios": [ 
+            "Cargo IVA", 
+            "Cobro de comision por el uso del Portal Business", 
+            "Gravamen Movimientos Financieros",
+            "Comision disfon proveedores interno",
+            "Comision dispersion de pago de proveedores-Otros",
+        ]
+    },
+    "Davivienda": {
+        # Usaré la estructura nueva con los conceptos planos anteriores por defecto
+        # En cuanto me pases la agrupación, la actualizo.
+        "Gastos Bancarios": [
+            "Ajuste X Gravamen Movimiento Financier (Nota Débito)",
+            "Cobro IVA Servicios Financieros (Nota Débito)",
+            "Cobro Pasarela Cargo Fijo Mensual (Nota Débito)",
+            "Cobro Servicio Empresarial. (Nota Débito)",
+            "Cobro Servicio Manejo Portal (Nota Débito)",
+            "Cobro Servicio Recaudo Nacional. (Nota Débito)",
+            "Cobro Transf. Enviada Otra Entidad (Nota Débito)",
+            "Cobro Transferencia A Davivienda (Nota Débito)",
+            "Descuento Transaccion Entre Ciudades. (Nota Débito)",
+            "Nd Cobro Disp Fond Daviplata (Nota Débito)",
+            "Reintegro Gravamen Mvto Financiero (Nota Crédito)",
+            "Rendimientos financieros (Nota Crédito)",
+        ]
+    },
+    "Bancolombia": {
+        # Usaré la estructura nueva con los conceptos planos anteriores por defecto
+        # En cuanto me pases la agrupación, la actualizo.
+        "Gastos Bancarios": [
+            "COBRO IVA PAGOS AUTOMATICOS",
+            "COMISION PAGO A OTROS BANCOS",
+            "COMISION PAGO A PROVEEDORES",
+            "COMISION PAGO DE NOMINA",
+            "COMISION POR PAGOS A NEQUI",
+            "CUOTA MANEJO SUC VIRT EMPRESA",
+            "IMPTO GOBIERNO 4X1000",
+            "INTERESES DE SOBREGIRO",
+            "IVA CUOTA MANEJO SUC VIRT EMP"
+        ]
+    }
 }
 
 def consolidar_gastos_bancarios(df, banco_seleccionado):
     """
-    Agrupa movimientos específicos por concepto, consolida su monto y fecha de cierre de mes,
-    y reemplaza las filas individuales por la fila consolidada.
+    Agrupa movimientos específicos de extracto en CONCEPTOS CONTABLES FINALES, 
+    consolida su monto POR MES, y reemplaza las filas individuales por la fila consolidada 
+    con fecha de cierre de mes.
     """
     
     if banco_seleccionado not in CONCEPTOS_A_CONSOLIDAR:
         # Si el banco no tiene reglas de consolidación definidas, no hacer nada.
         return df
 
-    conceptos_a_consolidar = CONCEPTOS_A_CONSOLIDAR[banco_seleccionado]
+    reglas_de_consolidacion = CONCEPTOS_A_CONSOLIDAR[banco_seleccionado]
     
-    if not conceptos_a_consolidar:
+    if not reglas_de_consolidacion:
         return df
         
-    df_consolidado = pd.DataFrame()
-    df_restante = df.copy() # Copia de trabajo para eliminar filas
-    
-    # Aseguramos que la columna 'concepto' sea string para la coincidencia exacta
     if 'concepto' not in df.columns:
         st.warning(f"No se encontró la columna 'concepto' en el extracto de {banco_seleccionado}. La consolidación de gastos no puede ejecutarse.")
         return df
         
+    df_restante = df.copy() # Copia de trabajo
     df_restante['concepto_str'] = df_restante['concepto'].astype(str).str.strip()
     
     nuevas_filas_consolidadas = []
     
-    # st.subheader(f"⚙️ Consolidación de Gastos Bancarios: {banco_seleccionado}")
-
-    for concepto_clave in conceptos_a_consolidar:
-        # 1. Filtrar movimientos que coinciden EXACTAMENTE
-        filas_a_consolidar = df_restante[df_restante['concepto_str'] == concepto_clave]
+    # Iteramos sobre los conceptos contables finales (IVA, Comisión, GMF, etc.)
+    for concepto_contable_final, conceptos_de_extracto in reglas_de_consolidacion.items():
+        
+        # 1. Identificar todas las filas que coinciden con CUALQUIERA de los conceptos de extracto
+        filas_a_consolidar = df_restante[
+            df_restante['concepto_str'].isin(conceptos_de_extracto)
+        ].copy()
         
         if filas_a_consolidar.empty:
-            # st.info(f"No se encontraron movimientos para el concepto '{concepto_clave}'.")
+            # st.info(f"No se encontraron movimientos para el concepto contable '{concepto_contable_final}'.")
             continue
             
         # 2. Verificar que los montos sean negativos (gastos)
         # Solo consolidamos si la mayoría de los montos son negativos
         if (filas_a_consolidar['monto'] > 0).sum() > (filas_a_consolidar['monto'] < 0).sum():
-            # st.warning(f"El concepto '{concepto_clave}' contiene más créditos que débitos. Se omitió la consolidación para evitar errores de signo.")
+            st.warning(f"El concepto contable '{concepto_contable_final}' contiene más créditos que débitos. Se omitió la consolidación para evitar errores de signo.")
             continue
             
-        # 3. Calcular la sumatoria de montos
-        monto_consolidado = filas_a_consolidar['monto'].sum()
-        
-        # 4. Determinar la fecha de consolidación (Último día del mes de los registros)
-        # Si la columna 'fecha' es NaT para todos, usaremos la fecha actual como fallback.
-        fechas_validas = filas_a_consolidar['fecha'].dropna()
-        
-        if fechas_validas.empty:
-            # Fallback a fecha actual
-            fecha_consolidada = pd.Timestamp.now().normalize()
-        else:
-            # Último día del mes de la FECHA MÁXIMA encontrada en el grupo.
-            ultima_fecha = fechas_validas.max().normalize()
-            
-            # Calcular el último día del mes (Fin del mes)
-            # Primero día del mes siguiente - 1 día
-            proximo_mes = ultima_fecha.replace(day=28) + pd.Timedelta(days=4) 
-            fecha_consolidada = proximo_mes.replace(day=1) - pd.Timedelta(days=1)
-        
-        # 5. Crear la nueva fila consolidada
-        nueva_fila = {
-            'fecha': fecha_consolidada,
-            'tercero': '',
-            'concepto': f"Gastos Bancarios - {concepto_clave}",
-            'numero_movimiento': '', # Queda vacío
-            'monto': monto_consolidado,
-            'origen': 'Banco' # Este campo solo es relevante si se usa para el resultado final
-            # Otros campos se llenan con NaN o un valor predeterminado si es necesario
-        }
-        
-        nuevas_filas_consolidadas.append(nueva_fila)
-        
-        # 6. Eliminar las filas individuales del DataFrame restante
-        df_restante = df_restante.drop(filas_a_consolidar.index, errors='ignore')
-        
-        st.success(f"✅ Se consolidaron {len(filas_a_consolidar)} movimientos de '{concepto_clave}'. Monto total: {monto_consolidado:,.2f}. Fecha: {fecha_consolidada.strftime('%d/%m/%Y')}")
+        # 3. Preparar para la agrupación mensual
+        # Aseguramos que la columna 'fecha' no tenga NaT (Not a Time) antes de extraer el periodo
+        filas_a_consolidar_validas = filas_a_consolidar.dropna(subset=['fecha'])
 
-    # 7. Concatenar las nuevas filas con el DataFrame restante
+        if filas_a_consolidar_validas.empty:
+            st.warning(f"El concepto contable '{concepto_contable_final}' se encontró, pero sin fechas válidas. Omitiendo consolidación.")
+            continue
+            
+        filas_a_consolidar_validas['año_mes'] = filas_a_consolidar_validas['fecha'].dt.to_period('M')
+        
+        # 4. Agrupar por mes y calcular la suma
+        grupos_mensuales = filas_a_consolidar_validas.groupby('año_mes').agg(
+            monto_consolidado=('monto', 'sum'),
+            fecha_max=('fecha', 'max'),
+            count=('monto', 'size')
+        ).reset_index()
+        
+        # 5. Generar las nuevas filas consolidadas (una por mes)
+        indices_a_eliminar = []
+
+        for index, row in grupos_mensuales.iterrows():
+            
+            monto_consolidado = row['monto_consolidado']
+            num_movimientos = row['count']
+            
+            # Calcular la fecha de consolidación (Último día del mes)
+            fecha_max = row['fecha_max'].normalize()
+            fecha_consolidada = fecha_max + MonthEnd(0)
+            
+            # Crear la nueva fila consolidada
+            nueva_fila = {
+                'fecha': fecha_consolidada,
+                'tercero': '',
+                # Usamos el CONCEPTO CONTABLE FINAL en la descripción
+                'concepto': f"Gastos Bancarios - {concepto_contable_final} ({num_movimientos} movs)",
+                'numero_movimiento': '', 
+                'monto': monto_consolidado,
+                'origen': 'Banco',
+                # Llenar el resto de columnas con NaN o valores predeterminados
+            }
+            
+            # Asegurarse de que se están consolidando débitos (negativos)
+            # Davivienda tiene conceptos de rendimiento (Nota Crédito) que son positivos
+            if monto_consolidado > 0 and banco_seleccionado != "Davivienda":
+                 # Emitir una advertencia, pero se permite la fila positiva en Davivienda por notas crédito.
+                 st.warning(f"El concepto '{concepto_contable_final}' consolidó un monto positivo ({monto_consolidado}). Revisar la definición del concepto.")
+
+            nuevas_filas_consolidadas.append(nueva_fila)
+            
+            st.success(f"✅ Se consolidaron {num_movimientos} movs de '{concepto_contable_final}' para {row['año_mes']}. Monto total: {monto_consolidado:,.2f}. Fecha: {fecha_consolidada.strftime('%d/%m/%Y')}")
+
+            # 6. Recolectar los índices originales para eliminarlos posteriormente
+            # Filtrar las filas originales que contribuyeron a este grupo mensual
+            indices_del_mes = filas_a_consolidar_validas[
+                filas_a_consolidar_validas['año_mes'] == row['año_mes']
+            ].index
+            indices_a_eliminar.extend(indices_del_mes.tolist())
+        
+        # 7. Eliminar las filas individuales del DataFrame restante
+        # Usamos el índice original de las filas_a_consolidar para eliminar
+        df_restante = df_restante.drop(indices_a_eliminar, errors='ignore')
+
+
+    # 8. Concatenar las nuevas filas con el DataFrame restante
     if nuevas_filas_consolidadas:
         df_nuevos = pd.DataFrame(nuevas_filas_consolidadas)
-        # Asegurarse de que las columnas coincidan para la concatenación
-        columnas_comunes = list(set(df_restante.columns) & set(df_nuevos.columns))
-        df_nuevos = df_nuevos[columnas_comunes]
-        df_restante = df_restante.drop(columns=['concepto_str'], errors='ignore')
+        
+        # Obtener las columnas finales esperadas (las del df_restante)
+        columnas_finales = df_restante.drop(columns=['concepto_str'], errors='ignore').columns
 
-        # Aseguramos que las columnas de df_nuevos existan en df_restante antes de concatenar
-        for col in df_restante.columns:
+        # Aseguramos que df_nuevos tenga todas las columnas de df_restante, llenando con NaN donde falten
+        for col in columnas_finales:
             if col not in df_nuevos.columns:
                 df_nuevos[col] = np.nan
         
-        df_final = pd.concat([df_restante.drop(columns=['concepto_str'], errors='ignore'), df_nuevos[df_restante.drop(columns=['concepto_str'], errors='ignore').columns]], ignore_index=True)
+        # Seleccionamos y ordenamos las columnas para la concatenación
+        df_nuevos = df_nuevos[columnas_finales]
+        
+        # Limpiamos concepto_str antes de concatenar
+        df_restante = df_restante.drop(columns=['concepto_str'], errors='ignore')
+        
+        df_final = pd.concat([df_restante, df_nuevos], ignore_index=True)
 
         return df_final
     
     # Si no se consolidó nada
     df_restante = df_restante.drop(columns=['concepto_str'], errors='ignore')
     return df_restante
-
 
 # Función para encontrar combinaciones que sumen un monto específico
 def encontrar_combinaciones(df, monto_objetivo, tolerancia=0.09, max_combinacion=5):
