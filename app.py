@@ -7,6 +7,7 @@ import re
 from collections import Counter
 from itertools import combinations
 import numpy as np
+from pandas.tseries.offsets import MonthEnd
 
 # Función para buscar la fila de encabezados
 def buscar_fila_encabezados(df, columnas_esperadas, max_filas=30, banco_seleccionado="Generico"):
