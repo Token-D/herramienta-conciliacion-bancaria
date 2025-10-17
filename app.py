@@ -741,6 +741,7 @@ CONCEPTOS_A_CONSOLIDAR = {
             "COMISION ADMON NET CASH",
             "COMISION PAGO REALIZADO NETC",
             "COMISION POR DOMICILIACION",
+            "COMISION POR DO",
         ],
         "GMF": [
             "CARGO POR IMPUESTO 4X1.000",
