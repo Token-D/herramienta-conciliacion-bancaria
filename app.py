@@ -734,7 +734,8 @@ CONCEPTOS_A_CONSOLIDAR = {
         "IVA": [
             "IVA POR COMISION POR DOMICIL", 
             "IVA COMISION ADMON NET CASH", 
-            "IVA COMISION PAGO REALIZAD N", 
+            "IVA COMISION PAGO REALIZAD N",
+            "IVA POR COMISIO",
         ],
         "Comisión": [
             "COMISION ADMON NET CASH",
@@ -743,51 +744,68 @@ CONCEPTOS_A_CONSOLIDAR = {
         ],
         "GMF": [
             "CARGO POR IMPUESTO 4X1.000",
+            "IMPUESTO DECRET",
         ]
     },
     "Bogotá": {
         # Usaré la estructura nueva con los conceptos planos anteriores por defecto
         # En cuanto me pases la agrupación, la actualizo.
-        "Gastos Bancarios": [ 
-            "Cargo IVA", 
+        "Comisión": [ 
             "Cobro de comision por el uso del Portal Business", 
-            "Gravamen Movimientos Financieros",
             "Comision disfon proveedores interno",
             "Comision dispersion de pago de proveedores-Otros",
-        ]
+        ],
+        "IVA": [
+            "Cargo IVA", 
+            ],
+        "GMF": [
+            "Gravamen Movimientos Financieros", 
+            ]
     },
     "Davivienda": {
         # Usaré la estructura nueva con los conceptos planos anteriores por defecto
         # En cuanto me pases la agrupación, la actualizo.
-        "Gastos Bancarios": [
+        "Otros": [
+            "Descuento Transaccion Entre Ciudades. (Nota Débito)",
+            "Nd Cobro Disp Fond Daviplata (Nota Débito)",
+            "Rendimientos financieros (Nota Crédito)",
+        ],
+        "IVA": [
+            "Cobro IVA Servicios Financieros (Nota Débito)", 
+            ],
+        "GMF": [
             "Ajuste X Gravamen Movimiento Financier (Nota Débito)",
-            "Cobro IVA Servicios Financieros (Nota Débito)",
+            "Reintegro Gravamen Mvto Financiero (Nota Crédito)",
+            ],
+        "Comisión": [
             "Cobro Pasarela Cargo Fijo Mensual (Nota Débito)",
             "Cobro Servicio Empresarial. (Nota Débito)",
             "Cobro Servicio Manejo Portal (Nota Débito)",
             "Cobro Servicio Recaudo Nacional. (Nota Débito)",
             "Cobro Transf. Enviada Otra Entidad (Nota Débito)",
             "Cobro Transferencia A Davivienda (Nota Débito)",
-            "Descuento Transaccion Entre Ciudades. (Nota Débito)",
-            "Nd Cobro Disp Fond Daviplata (Nota Débito)",
-            "Reintegro Gravamen Mvto Financiero (Nota Crédito)",
-            "Rendimientos financieros (Nota Crédito)",
-        ]
+            ]
     },
     "Bancolombia": {
         # Usaré la estructura nueva con los conceptos planos anteriores por defecto
         # En cuanto me pases la agrupación, la actualizo.
         "Gastos Bancarios": [
+            "CUOTA MANEJO SUC VIRT EMPRESA",
+            "INTERESES DE SOBREGIRO",
+        ],
+        "IVA": [
             "COBRO IVA PAGOS AUTOMATICOS",
+            "IVA CUOTA MANEJO SUC VIRT EMP",
+            ],
+        "GMF": [
+            "IMPTO GOBIERNO 4X1000",
+            ],
+        "Comisión": [
             "COMISION PAGO A OTROS BANCOS",
             "COMISION PAGO A PROVEEDORES",
             "COMISION PAGO DE NOMINA",
             "COMISION POR PAGOS A NEQUI",
-            "CUOTA MANEJO SUC VIRT EMPRESA",
-            "IMPTO GOBIERNO 4X1000",
-            "INTERESES DE SOBREGIRO",
-            "IVA CUOTA MANEJO SUC VIRT EMP"
-        ]
+            ]
     }
 }
 
