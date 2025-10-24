@@ -1658,7 +1658,7 @@ if extracto_file and auxiliar_file:
         # 2. Mostrar el resultado en la sección de Conciliación
         if saldo_final_banco is not None:
         # Formatear el monto con separadores de miles y decimales
-        saldo_formateado = f"${saldo_final_banco:,.2f}"
+         saldo_formateado = f"${saldo_final_banco:,.2f}"
     
         # Mostrar el Saldo Final Banco al inicio de la sección de Resultados
         st.subheader("Resultados de la Conciliación")
