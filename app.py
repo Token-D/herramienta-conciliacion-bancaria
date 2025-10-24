@@ -894,10 +894,19 @@ def consolidar_gastos_bancarios(df, banco_seleccionado):
             # st.info(f"No se encontraron movimientos para el concepto contable '{concepto_contable_final}'.")
             continue
             
-        # 2. Verificar que los montos sean negativos (gastos)
-        # Solo consolidamos si la mayoría de los montos son negativos
-        if (filas_a_consolidar['monto'] > 0).sum() > (filas_a_consolidar['monto'] < 0).sum():
-            st.warning(f"El concepto contable '{concepto_contable_final}' contiene más créditos que débitos. Se omitió la consolidación para evitar errores de signo.")
+        # 2. Verificar la dirección del signo (Ajuste Clave)
+        if concepto_contable_final == 'Rendimientos':
+            # RENDIMIENTOS: Esperamos que la mayoría sean CRÉDITOS (monto > 0)
+            es_mayoria_correcta = (filas_a_consolidar['monto'] > 0).sum() > (filas_a_consolidar['monto'] < 0).sum()
+            advertencia_signo = "débitos que créditos"
+        else:
+            # OTROS CONCEPTOS (Gastos): Esperamos que la mayoría sean DÉBITOS (monto < 0)
+            es_mayoria_correcta = (filas_a_consolidar['monto'] < 0).sum() >= (filas_a_consolidar['monto'] > 0).sum()
+            advertencia_signo = "créditos que débitos"
+
+        # Aplicar la omisión si no cumple la regla de signo
+        if not es_mayoria_correcta:
+            st.warning(f"El concepto contable **'{concepto_contable_final}'** contiene más **{advertencia_signo}**. Se omitió la consolidación para evitar errores de signo.")
             continue
             
         # 3. Preparar para la agrupación mensual
