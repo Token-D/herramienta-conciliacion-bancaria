@@ -1650,9 +1650,9 @@ if extracto_file and auxiliar_file:
             st.write(resultados_df[resultados_df['fecha'].isna()])
 
         # 1. Obtener el Saldo Final Banco de la Columna I del archivo subido
-         saldo_final_banco = obtener_saldo_final_auxiliar(
-            archivo_stream=auxiliar_file, 
-            nombre_archivo="Libro Auxiliar"
+        saldo_final_banco = obtener_saldo_final_auxiliar(
+         archivo_stream=auxiliar_file, 
+         nombre_archivo="Libro Auxiliar"
         )
 
         # 2. Mostrar el resultado en la sección de Conciliación
