@@ -766,11 +766,15 @@ CONCEPTOS_A_CONSOLIDAR = {
     "Davivienda": {
         # Usaré la estructura nueva con los conceptos planos anteriores por defecto
         # En cuanto me pases la agrupación, la actualizo.
-        "Otros": [
-            "Descuento Transaccion Entre Ciudades. (Nota Débito)",
-            "Nd Cobro Disp Fond Daviplata (Nota Débito)",
-            "Rendimientos financieros (Nota Crédito)",
+        "Gastos Bancarios": [
+            "Cobro Pasarela Cargo Fijo Mensual (Nota Débito)",
+            "Cobro Servicio Empresarial. (Nota Débito)",
+            "Cobro Servicio Manejo Portal (Nota Débito)",
+            "Cobro Servicio Recaudo Nacional. (Nota Débito)",
         ],
+        "Rendimientos": [
+            "Rendimientos financieros (Nota Crédito)", 
+            ],
         "IVA": [
             "Cobro IVA Servicios Financieros (Nota Débito)", 
             ],
@@ -779,12 +783,10 @@ CONCEPTOS_A_CONSOLIDAR = {
             "Reintegro Gravamen Mvto Financiero (Nota Crédito)",
             ],
         "Comisión": [
-            "Cobro Pasarela Cargo Fijo Mensual (Nota Débito)",
-            "Cobro Servicio Empresarial. (Nota Débito)",
-            "Cobro Servicio Manejo Portal (Nota Débito)",
-            "Cobro Servicio Recaudo Nacional. (Nota Débito)",
             "Cobro Transf. Enviada Otra Entidad (Nota Débito)",
             "Cobro Transferencia A Davivienda (Nota Débito)",
+            "Descuento Transaccion Entre Ciudades. (Nota Débito)",
+            "Nd Cobro Disp Fond Daviplata (Nota Débito)",
             ]
     },
     "Bancolombia": {
@@ -792,8 +794,10 @@ CONCEPTOS_A_CONSOLIDAR = {
         # En cuanto me pases la agrupación, la actualizo.
         "Gastos Bancarios": [
             "CUOTA MANEJO SUC VIRT EMPRESA",
-            "INTERESES DE SOBREGIRO",
         ],
+        "Intereses Sobregiro": [
+            "INTERESES DE SOBREGIRO",
+            ],
         "IVA": [
             "COBRO IVA PAGOS AUTOMATICOS",
             "IVA CUOTA MANEJO SUC VIRT EMP",
