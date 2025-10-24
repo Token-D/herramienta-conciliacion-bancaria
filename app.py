@@ -1617,11 +1617,11 @@ def generar_excel_resumen_conciliacion(resultados_df, banco_seleccionado, mes_co
     # Rango: desde la primera fila VACÍA (fila_actual_index) hasta el index 27 (Fila 28)
     if fila_actual_index <= 27:
         for r in range(fila_actual_index, 28): # range(20, 28) si no hay datos, por ejemplo
-            worksheet.write(r, 2, '', formato_borde_inferior) 
-            worksheet.write(r, 3, '', formato_borde_inferior) 
-            worksheet.write(r, 4, '', formato_borde_inferior) 
-            worksheet.write(r, 5, '', formato_borde_inferior) 
-            worksheet.write(r, 6, 0, formato_moneda) 
+             worksheet.write(r, 2, '', formato_borde_inferior) 
+             worksheet.write(r, 3, '', formato_borde_inferior) 
+             worksheet.write(r, 4, '', formato_borde_inferior) 
+             worksheet.write(r, 5, '', formato_borde_inferior) 
+             worksheet.write(r, 6, 0, formato_moneda) 
             
     # 9. Escribir la FÓRMULA DE SUMA DINÁMICA (en la celda H28 o equivalente)
     # Rango: de G21 (index 20) a G(ultima_fila_datos_index + 1)
