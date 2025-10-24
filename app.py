@@ -1687,7 +1687,7 @@ if extracto_file and auxiliar_file:
         # Condición 2: 'concepto' contiene la palabra "Gastos Bancarios" (insensible a mayúsculas)
         gastos_bancarios_no_conciliados = resultados_df[
             (resultados_df['tipo_conciliacion'] == 'No Conciliado') &
-            (resultados_df['concepto'].astype(str).str.contains('Gastos Bancarios', case=False, na=False))
+            #(resultados_df['concepto'].astype(str).str.contains('Gastos Bancarios', case=False, na=False))
         ]
 
         if not gastos_bancarios_no_conciliados.empty:
