@@ -1690,8 +1690,8 @@ if extracto_file and auxiliar_file:
         # Condición 2: 'concepto' contiene la frase 'Gastos Bancarios' (insensible a mayúsculas)
         # Usamos .str.contains con el patrón literal para capturar "Gastos Bancarios - IVA", etc.
         gastos_bancarios_no_conciliados = resultados_df[
-            (resultados_df['tipo_conciliacion'] == 'No Conciliado') &
-            (resultados_df['concepto'].astype(str).str.contains(patron_gastos_literal, case=False, na=False))
+            (resultados_df['tipo_conciliacion'] == 'No Conciliado') #&
+            # (resultados_df['concepto'].astype(str).str.contains(patron_gastos_literal, case=False, na=False))
         ]
 
         if not gastos_bancarios_no_conciliados.empty:
