@@ -1514,6 +1514,12 @@ def aplicar_formato_excel(writer, resultados_df):
                                 # Usa write para otros tipos (texto/general)
                                 worksheet.write(row_num, col_idx, valor, formato_no_conciliado)
 
+from io import BytesIO
+import xlsxwriter
+import numpy as np
+import pandas as pd
+# from pandas.tseries.offsets import MonthEnd # Asegúrate de que esta línea esté importada al inicio
+
 def generar_excel_resumen_conciliacion(resultados_df, banco_seleccionado, mes_conciliacion, anio_conciliacion, saldo_final_banco):
     """
     Genera el archivo Excel solo con la hoja 'Resumen Conciliacion' basado en el formato.
@@ -1521,6 +1527,7 @@ def generar_excel_resumen_conciliacion(resultados_df, banco_seleccionado, mes_co
     
     # 1. Preparar la fecha de corte (último día del mes)
     try:
+        # Crea un Timestamp a partir del mes y año y obtiene el último día
         fecha_corte = pd.Timestamp(year=anio_conciliacion, month=mes_conciliacion, day=1) + MonthEnd(0)
         fecha_corte_str = fecha_corte.strftime('%d/%m/%Y')
     except Exception:
@@ -1549,7 +1556,7 @@ def generar_excel_resumen_conciliacion(resultados_df, banco_seleccionado, mes_co
     # ----------------------------------------------------
     worksheet = workbook.add_worksheet('Resumen Conciliacion')
     
-    # --- Estilos Básicos ---
+    # --- Estilos Básicos (Corregidos) ---
     formato_general = workbook.add_format({'font_name': 'Arial', 'font_size': 10})
     formato_negrita = workbook.add_format({'bold': True, 'font_name': 'Arial', 'font_size': 10})
     formato_encabezado_seccion = workbook.add_format({'bold': True, 'font_name': 'Arial', 'font_size': 10, 'bg_color': '#D9D9D9', 'border': 1, 'align': 'center'})
@@ -1617,11 +1624,11 @@ def generar_excel_resumen_conciliacion(resultados_df, banco_seleccionado, mes_co
     # Rango: desde la primera fila VACÍA (fila_actual_index) hasta el index 27 (Fila 28)
     if fila_actual_index <= 27:
         for r in range(fila_actual_index, 28): # range(20, 28) si no hay datos, por ejemplo
-            worksheet.write(r, 2, '', formato_borde_inferior) 
-            worksheet.write(r, 3, '', formato_borde_inferior) 
-            worksheet.write(r, 4, '', formato_borde_inferior) 
-            worksheet.write(r, 5, '', formato_borde_inferior) 
-            worksheet.write(r, 6, 0, formato_moneda) 
+            worksheet.write(r, 2, '', formato_borde_inferior)
+            worksheet.write(r, 3, '', formato_borde_inferior)
+            worksheet.write(r, 4, '', formato_borde_inferior)
+            worksheet.write(r, 5, '', formato_borde_inferior)
+            worksheet.write(r, 6, 0, formato_moneda)
             
     # 9. Escribir la FÓRMULA DE SUMA DINÁMICA (en la celda H28 o equivalente)
     # Rango: de G21 (index 20) a G(ultima_fila_datos_index + 1)
@@ -1634,9 +1641,9 @@ def generar_excel_resumen_conciliacion(resultados_df, banco_seleccionado, mes_co
     fila_base_plantilla_index = fila_suma_debito_index + 1 # Fila que contiene el título 'Mas: Notas crédito'
     
     # Mas: Notas crédito (Título de sección)
-    worksheet.merge_range(fila_base_plantilla_index, 2, fila_base_plantilla_index, 7, 
-                          'Mas: Notas crédito bancarias que figuran en los extractos aumentando el saldo en extracto pero que todavía se hallan pendientes de registrar en la contabilidad', 
-                          formato_general)
+    worksheet.merge_range(fila_base_plantilla_index, 2, fila_base_plantilla_index, 7, 
+                            'Mas: Notas crédito bancarias que figuran en los extractos aumentando el saldo en extracto pero que todavía se hallan pendientes de registrar en la contabilidad', 
+                            formato_general)
     
     # Conceptos/Valor (Encabezado de columnas)
     fila_encabezado_credito_index = fila_base_plantilla_index + 1 
@@ -1649,7 +1656,7 @@ def generar_excel_resumen_conciliacion(resultados_df, banco_seleccionado, mes_co
     num_filas_credito = 5
     
     # f es el índice 0-base de la fila
-    # CORRECCIÓN CLAVE: Usamos 'f' directamente en merge_range, no 'f - 1'
+    # CORRECCIÓN CLAVE para evitar OverlappingRange: Usamos 'f' directamente en merge_range
     for f in range(fila_datos_credito_inicio_index, fila_datos_credito_inicio_index + num_filas_credito):
         # C (index 2)
         worksheet.write(f, 2, '', formato_borde_inferior) 
@@ -1662,21 +1669,20 @@ def generar_excel_resumen_conciliacion(resultados_df, banco_seleccionado, mes_co
     
     # Fórmula de suma (H35 o equivalente)
     # Rango: de F(fila_datos_credito_inicio_index + 1) a F(fila_suma_credito_index)
-    rango_suma_credito = f'F{fila_datos_credito_inicio_index + 1}:F{fila_suma_credito_index}' 
-    worksheet.write(fila_suma_credito_index, 7, f'=SUM({rango_suma_credito})', formato_moneda_total) 
+    rango_suma_credito = f'F{fila_datos_credito_inicio_index + 1}:F{fila_suma_credito_index}' 
+    worksheet.write(fila_suma_credito_index, 7, f'=SUM({rango_suma_credito})', formato_moneda_total) 
     
     # --- Ajustes de Columnas ---
-    worksheet.set_column('C:C', 30) 
+    worksheet.set_column('C:C', 30) 
     worksheet.set_column('D:D', 15)
     worksheet.set_column('E:E', 15)
     worksheet.set_column('F:F', 15)
-    worksheet.set_column('G:H', 18) 
+    worksheet.set_column('G:H', 18) 
     
     # Cerrar el writer
     writer.close()
     output.seek(0)
     return output
-
 
 # Interfaz de Streamlit
 st.title("Herramienta de Conciliación Bancaria Automática")
