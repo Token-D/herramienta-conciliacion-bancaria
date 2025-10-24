@@ -1682,6 +1682,38 @@ if extracto_file and auxiliar_file:
         distribucion_pivot = distribucion_pivot[['Tipo de Conciliación', 'Extracto Bancario', 'Libro Auxiliar', 'Cantidad Total']]
         st.write(distribucion_pivot)
 
+        # 1. Filtrar los movimientos
+        # Condición 1: 'tipo_conciliacion' es "No Conciliado"
+        # Condición 2: 'concepto' contiene la palabra "Gastos Bancarios" (insensible a mayúsculas)
+        gastos_bancarios_no_conciliados = resultados_df[
+            (resultados_df['tipo_conciliacion'] == 'No Conciliado') &
+            (resultados_df['concepto'].astype(str).str.contains('Gastos Bancarios', case=False, na=False))
+        ]
+
+        if not gastos_bancarios_no_conciliados.empty:
+            st.subheader("⚠️ Resumen Rápido de Gastos Bancarios Pendientes")
+            st.info("A continuación, se muestran los movimientos 'No Conciliados' que contienen 'Gastos Bancarios' en su concepto. Estos requieren atención.")
+            
+            # 2. Seleccionar columnas relevantes para la visualización rápida
+            resumen_gastos = gastos_bancarios_no_conciliados[
+                ['fecha', 'concepto', 'origen', 'monto']
+            ].copy()
+            
+            # 3. Formatear la columna 'monto' para una mejor lectura
+            resumen_gastos['monto'] = resumen_gastos['monto'].apply(lambda x: f"${x:,.2f}")
+            
+            # 4. Renombrar columnas para claridad
+            resumen_gastos.columns = ['Fecha', 'Concepto', 'Origen', 'Monto']
+            
+            # 5. Mostrar el DataFrame
+            st.dataframe(resumen_gastos)
+            
+            # 6. Mostrar el total del monto (opcional, pero útil)
+            total_gastos = gastos_bancarios_no_conciliados['monto'].sum()
+            st.markdown(f"**Total Pendiente de Gastos Bancarios:** **${total_gastos:,.2f}**")
+        else:
+            st.success("✅ No se encontraron movimientos 'No Conciliados' con el concepto 'Gastos Bancarios' pendientes.")
+
         st.write("Detalle de todos los movimientos:")
         st.write(resultados_df)
 
