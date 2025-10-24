@@ -1515,154 +1515,167 @@ def aplicar_formato_excel(writer, resultados_df):
                                 worksheet.write(row_num, col_idx, valor, formato_no_conciliado)
 
 def generar_excel_resumen_conciliacion(resultados_df, banco_seleccionado, mes_conciliacion, anio_conciliacion, saldo_final_banco):
-            """
-            Genera el archivo Excel solo con la hoja 'Resumen Conciliacion' basado en el formato.
-            """
+    """
+    Genera el archivo Excel solo con la hoja 'Resumen Conciliacion' basado en el formato.
+    """
     
-            # 1. Preparar la fecha de corte (último día del mes)
-            try:
-                # Crea un Timestamp a partir del mes y año y obtiene el último día
-                fecha_corte = pd.Timestamp(year=anio_conciliacion, month=mes_conciliacion, day=1) + MonthEnd(0)
-                fecha_corte_str = fecha_corte.strftime('%d/%m/%Y')
-            except Exception:
-                fecha_corte_str = "Fecha de Corte Inválida"
+    # 1. Preparar la fecha de corte (último día del mes)
+    try:
+        fecha_corte = pd.Timestamp(year=anio_conciliacion, month=mes_conciliacion, day=1) + MonthEnd(0)
+        fecha_corte_str = fecha_corte.strftime('%d/%m/%Y')
+    except Exception:
+        fecha_corte_str = "Fecha de Corte Inválida"
 
-            # 2. Filtrar los movimientos del auxiliar No Conciliados (Sección de Débitos Pendientes)
-            movs_aux_no_conciliados = resultados_df[
-                (resultados_df['origen'] == 'Libro Auxiliar') & 
-                (resultados_df['tipo_conciliacion'] == 'No Conciliado') &
-                (resultados_df['monto'] < 0) # Solo débitos (restas) del auxiliar
-            ].copy()
+    # 2. Filtrar los movimientos del auxiliar No Conciliados (Sección de Débitos Pendientes)
+    movs_aux_no_conciliados = resultados_df[
+        (resultados_df['origen'] == 'Libro Auxiliar') & 
+        (resultados_df['tipo_conciliacion'] == 'No Conciliado') &
+        (resultados_df['monto'] < 0) # Solo débitos (restas) del auxiliar
+    ].copy()
 
-            # Aseguramos que existan las columnas clave
-            if 'tercero' not in movs_aux_no_conciliados.columns:
-                movs_aux_no_conciliados['tercero'] = ''
-            if 'numero_movimiento' not in movs_aux_no_conciliados.columns:
-                movs_aux_no_conciliados['numero_movimiento'] = ''
+    # Aseguramos que existan las columnas clave
+    if 'tercero' not in movs_aux_no_conciliados.columns:
+        movs_aux_no_conciliados['tercero'] = ''
+    if 'numero_movimiento' not in movs_aux_no_conciliados.columns:
+        movs_aux_no_conciliados['numero_movimiento'] = ''
 
-            # 3. Inicializar el Excel
-            output = BytesIO()
-            writer = pd.ExcelWriter(output, engine='xlsxwriter')
-            workbook = writer.book
+    # 3. Inicializar el Excel
+    output = BytesIO()
+    writer = pd.ExcelWriter(output, engine='xlsxwriter')
+    workbook = writer.book
 
     # ----------------------------------------------------
     # HOJA: RESUMEN CONCILIACION
     # ----------------------------------------------------
-            worksheet = workbook.add_worksheet('Resumen Conciliacion')
+    worksheet = workbook.add_worksheet('Resumen Conciliacion')
     
     # --- Estilos Básicos ---
-            formato_general = workbook.add_format({'font_name': 'Arial', 'font_size': 10})
-            formato_negrita = workbook.add_format({'bold': True, 'font_name': 'Arial', 'font_size': 10})
-            formato_encabezado_seccion = workbook.add_format({'bold': True, 'font_name': 'Arial', 'font_size': 10, 'bg_color': '#D9D9D9', 'border': 1, 'align': 'center'})
-            formato_moneda = workbook.add_format({'num_format': '$#,##0.00', 'font_name': 'Arial', 'font_size': 10})
-            formato_moneda_total = workbook.add_format({'num_format': '$#,##0.00', 'bold': True, 'font_name': 'Arial', 'font_size': 10, 'top': 1, 'bottom': 6})
-            formato_borde_inferior = workbook.add_format({'bottom': 1, 'font_name': 'Arial', 'font_size': 10})
-            formato_fecha = workbook.add_format({'num_format': 'dd/mm/yyyy', 'font_name': 'Arial', 'font_size': 10})
+    formato_general = workbook.add_format({'font_name': 'Arial', 'font_size': 10})
+    formato_negrita = workbook.add_format({'bold': True, 'font_name': 'Arial', 'font_size': 10})
+    formato_encabezado_seccion = workbook.add_format({'bold': True, 'font_name': 'Arial', 'font_size': 10, 'bg_color': '#D9D9D9', 'border': 1, 'align': 'center'})
+    formato_moneda = workbook.add_format({'num_format': '$#,##0.00', 'font_name': 'Arial', 'font_size': 10})
+    
+    # Formato Moneda Total CORREGIDO (top, bottom en lugar de border_top/bottom)
+    formato_moneda_total = workbook.add_format({'num_format': '$#,##0.00', 'bold': True, 'font_name': 'Arial', 'font_size': 10, 'top': 1, 'bottom': 6})
+    
+    formato_borde_inferior = workbook.add_format({'bottom': 1, 'font_name': 'Arial', 'font_size': 10})
+    formato_fecha = workbook.add_format({'num_format': 'dd/mm/yyyy', 'font_name': 'Arial', 'font_size': 10})
     
     # --- Dibujar la Plantilla y Escribir Datos Fijos ---
     
-            # 1. Título General (C7)
-            worksheet.merge_range('C7:H7', 'CONCILIACION BANCARIA', formato_encabezado_seccion)
+    # 1. Título General (C7)
+    worksheet.merge_range('C7:H7', 'CONCILIACION BANCARIA', formato_encabezado_seccion)
     
-            # 2. Datos de Encabezado (C9-D13)
-            worksheet.write('C9', 'Banco donde se posee la cuenta', formato_general)
-            worksheet.write('C10', 'Número de la cuenta', formato_general)
-            worksheet.write('C13', 'Fecha de Corte en la que se efectúa la conciliación', formato_general)
+    # 2. Datos de Encabezado (C9-D13)
+    worksheet.write('C9', 'Banco donde se posee la cuenta', formato_general)
+    worksheet.write('C10', 'Número de la cuenta', formato_general)
+    worksheet.write('C13', 'Fecha de Corte en la que se efectúa la conciliación', formato_general)
     
     # 3. Rellenar Datos Dinámicos de Encabezado
-            worksheet.write('D9', banco_seleccionado, formato_negrita) # D9: Nombre del Banco
-            worksheet.write('D13', fecha_corte_str, formato_fecha) # D13: Fecha de Corte
+    worksheet.write('D9', banco_seleccionado, formato_negrita) # D9: Nombre del Banco
+    worksheet.write('D13', fecha_corte_str, formato_fecha) # D13: Fecha de Corte
     
     # 4. Saldo Final (H15) y Títulos de Sección
-            worksheet.write('C15', 'Saldo según Extracto', formato_negrita)
-            worksheet.write('H15', saldo_final_banco, formato_moneda_total) # H15: Saldo Final Banco
+    worksheet.write('C15', 'Saldo según Extracto', formato_negrita)
+    worksheet.write('H15', saldo_final_banco, formato_moneda_total) # H15: Saldo Final Banco
     
     # 5. Sección 1: Notas Débito Auxiliar (C17)
-            worksheet.merge_range('C17:H17', 'Menos: Cheques girados y entregados pero pendientes de cobro ante la entidad bancaria', formato_general)
-            worksheet.merge_range('C18:H18', 'Beneficiario, No. Cheque, CE, Fecha en que se giró (según contabilidad), Valor', formato_general)
+    worksheet.merge_range('C17:H17', 'Menos: Cheques girados y entregados pero pendientes de cobro ante la entidad bancaria', formato_general)
+    worksheet.merge_range('C18:H18', 'Beneficiario, No. Cheque, CE, Fecha en que se giró (según contabilidad), Valor', formato_general)
     
     # 6. Sección 2: Movimientos Auxiliar No Conciliados (Débitos pendientes de pago)
-            worksheet.merge_range('C19:H19', 'Menos: Movimientos débito del Libro Auxiliar No Conciliados (Débitos pendientes de pago)', formato_general)
-            worksheet.write('C20', 'Tercero', formato_encabezado_seccion)
-            worksheet.write('D20', 'Concepto', formato_encabezado_seccion)
-            worksheet.write('E20', 'No. Egreso', formato_encabezado_seccion)
-            worksheet.write('F20', 'Fecha', formato_encabezado_seccion)
-            worksheet.write('G20', 'Valor', formato_encabezado_seccion)
-            worksheet.write('H20', '', formato_encabezado_seccion)
+    worksheet.merge_range('C19:H19', 'Menos: Movimientos débito del Libro Auxiliar No Conciliados (Débitos pendientes de pago)', formato_general)
+    worksheet.write('C20', 'Tercero', formato_encabezado_seccion)
+    worksheet.write('D20', 'Concepto', formato_encabezado_seccion)
+    worksheet.write('E20', 'No. Egreso', formato_encabezado_seccion)
+    worksheet.write('F20', 'Fecha', formato_encabezado_seccion)
+    worksheet.write('G20', 'Valor', formato_encabezado_seccion)
+    worksheet.write('H20', '', formato_encabezado_seccion)
     
     # 7. ESCRIBIR FILAS DINÁMICAS (Débitos pendientes del Auxiliar)
     
-            fila_inicio_datos = 21 # Fila inicial para los datos del DF (Fila 21 en Excel)
-            fila_actual = fila_inicio_datos
+    fila_inicio_datos = 21 # Fila 1-base de inicio de datos (Fila 21 en Excel)
+    fila_actual_index = fila_inicio_datos - 1 # Índice 0-base de inicio de datos (Index 20)
     
-            for _, row in movs_aux_no_conciliados.iterrows():
-                # Celdas: C (Tercero), D (Concepto), E (No. Egreso), F (Fecha), G (Valor)
-                worksheet.write(fila_actual - 1, 2, row['tercero'], formato_borde_inferior)        # C: Tercero (Columna B de resultado_df)
-                worksheet.write(fila_actual - 1, 3, row['concepto'], formato_borde_inferior)       # D: Concepto (Columna C de resultado_df)
-                worksheet.write(fila_actual - 1, 4, row['numero_movimiento'], formato_borde_inferior) # E: No. Egreso (Columna D de resultado_df)
-                worksheet.write(fila_actual - 1, 5, row['fecha'], formato_fecha)                  # F: Fecha (Columna A de resultado_df)
-                worksheet.write(fila_actual - 1, 6, abs(row['monto']), formato_moneda)            # G: Valor (Columna E de resultado_df, valor absoluto)
+    for _, row in movs_aux_no_conciliados.iterrows():
+        # Escribir usando el índice 0-base directamente
+        worksheet.write(fila_actual_index, 2, row['tercero'], formato_borde_inferior)        # C: Tercero 
+        worksheet.write(fila_actual_index, 3, row['concepto'], formato_borde_inferior)       # D: Concepto 
+        worksheet.write(fila_actual_index, 4, row['numero_movimiento'], formato_borde_inferior) # E: No. Egreso 
+        worksheet.write(fila_actual_index, 5, row['fecha'], formato_fecha)                  # F: Fecha 
+        worksheet.write(fila_actual_index, 6, abs(row['monto']), formato_moneda)            # G: Valor 
         
-                fila_actual += 1
+        fila_actual_index += 1
 
-    # Definir la última fila de datos (mínimo Fila 28)
-    # Celdas C20 a G28 son 9 filas de datos.
-            ultima_fila_datos = max(28, fila_actual - 1) 
-            fila_suma_debito = ultima_fila_datos + 1 # Fila donde va la suma (H28 es la celda en tu plantilla, pero dinámicamente será la fila_suma_debito - 1)
+    # Definir la última fila de datos (mínimo Fila 28, index 27)
+    ultima_fila_datos_index = max(27, fila_actual_index - 1) # Índice de la última fila con datos/formato
+    
+    # La Fila de la SUMA es la siguiente a la última fila de datos
+    fila_suma_debito_index = ultima_fila_datos_index + 1 
     
     # 8. Rellenar las filas de formato base si hay menos de 9 registros
-            if fila_actual <= 29:
-                for f in range(fila_actual, 29):
-                    worksheet.write(f - 1, 2, '', formato_borde_inferior) 
-                    worksheet.write(f - 1, 3, '', formato_borde_inferior) 
-                    worksheet.write(f - 1, 4, '', formato_borde_inferior) 
-                    worksheet.write(f - 1, 5, '', formato_borde_inferior) 
-                    worksheet.write(f - 1, 6, 0, formato_moneda) 
+    # Rango: desde la primera fila VACÍA (fila_actual_index) hasta el index 27 (Fila 28)
+    if fila_actual_index <= 27:
+        for r in range(fila_actual_index, 28): # range(20, 28) si no hay datos, por ejemplo
+            worksheet.write(r, 2, '', formato_borde_inferior) 
+            worksheet.write(r, 3, '', formato_borde_inferior) 
+            worksheet.write(r, 4, '', formato_borde_inferior) 
+            worksheet.write(r, 5, '', formato_borde_inferior) 
+            worksheet.write(r, 6, 0, formato_moneda) 
             
     # 9. Escribir la FÓRMULA DE SUMA DINÁMICA (en la celda H28 o equivalente)
-            rango_suma_g = f'G{fila_inicio_datos}:G{ultima_fila_datos}' # Rango dinámico (ej: G21:G28 o G21:G50)
-            worksheet.write(fila_suma_debito - 1, 7, f'=SUM({rango_suma_g})', formato_moneda_total) # H28 o equivalente
+    # Rango: de G21 (index 20) a G(ultima_fila_datos_index + 1)
+    rango_suma_g = f'G{fila_inicio_datos}:G{ultima_fila_datos_index + 1}' 
+    worksheet.write(fila_suma_debito_index, 7, f'=SUM({rango_suma_g})', formato_moneda_total) 
     
     
     # 10. Formato del resto de la plantilla (A partir de la fila siguiente a la suma)
     
-            fila_base_plantilla = fila_suma_debito + 1
+    fila_base_plantilla_index = fila_suma_debito_index + 1 # Fila que contiene el título 'Mas: Notas crédito'
     
-    # Mas: Notas crédito (Fila 29 o equivalente)
-            worksheet.merge_range(fila_base_plantilla - 1, 2, fila_base_plantilla - 1, 7, 
-                          'Mas: Notas crédito bancarias que figuran en los extractos aumentando el saldo en extracto pero que todavía se hallan pendientes de registrar en la contabilidad', 
-                          formato_general)
+    # Mas: Notas crédito (Título de sección)
+    worksheet.merge_range(fila_base_plantilla_index, 2, fila_base_plantilla_index, 7, 
+                          'Mas: Notas crédito bancarias que figuran en los extractos aumentando el saldo en extracto pero que todavía se hallan pendientes de registrar en la contabilidad', 
+                          formato_general)
     
-    # Conceptos/Valor (Fila 30 o equivalente)
-            worksheet.write(fila_base_plantilla, 2, 'Concepto', formato_encabezado_seccion)
-            worksheet.merge_range(fila_base_plantilla, 3, fila_base_plantilla, 4, 'Fecha en que apareció en el extracto', formato_encabezado_seccion)
-            worksheet.write(fila_base_plantilla, 5, 'Valor', formato_encabezado_seccion)
+    # Conceptos/Valor (Encabezado de columnas)
+    fila_encabezado_credito_index = fila_base_plantilla_index + 1 
+    worksheet.write(fila_encabezado_credito_index, 2, 'Concepto', formato_encabezado_seccion) # C
+    worksheet.merge_range(fila_encabezado_credito_index, 3, fila_encabezado_credito_index, 4, 'Fecha en que apareció en el extracto', formato_encabezado_seccion) # D:E (Fusionado)
+    worksheet.write(fila_encabezado_credito_index, 5, 'Valor', formato_encabezado_seccion) # F
     
-    # Rellenar con formatos de las celdas (5 filas)
-            fila_datos_credito = fila_base_plantilla + 1
-            num_filas_credito = 5
-            for f in range(fila_datos_credito, fila_datos_credito + num_filas_credito):
-                worksheet.write(f - 1, 2, '', formato_borde_inferior) # C
-                worksheet.merge_range(f - 1, 3, f - 1, 4, '', formato_borde_inferior) # D:E
-                worksheet.write(f - 1, 5, 0, formato_moneda) # F (Valor 0 para la fórmula)
+    # Rellenar con formatos de las celdas (5 filas de datos)
+    fila_datos_credito_inicio_index = fila_encabezado_credito_index + 1 # Primera fila de datos (Index)
+    num_filas_credito = 5
+    
+    # f es el índice 0-base de la fila
+    # CORRECCIÓN CLAVE: Usamos 'f' directamente en merge_range, no 'f - 1'
+    for f in range(fila_datos_credito_inicio_index, fila_datos_credito_inicio_index + num_filas_credito):
+        # C (index 2)
+        worksheet.write(f, 2, '', formato_borde_inferior) 
+        # D:E (index 3 a 4)
+        worksheet.merge_range(f, 3, f, 4, '', formato_borde_inferior) 
+        # F (index 5)
+        worksheet.write(f, 5, 0, formato_moneda) 
 
-            fila_suma_credito = fila_datos_credito + num_filas_credito 
+    fila_suma_credito_index = fila_datos_credito_inicio_index + num_filas_credito # Fila donde va la suma (Index)
     
     # Fórmula de suma (H35 o equivalente)
-            rango_suma_credito = f'F{fila_datos_credito}:F{fila_suma_credito - 1}' 
-            worksheet.write(fila_suma_credito - 1, 7, f'=SUM({rango_suma_credito})', formato_moneda_total) 
+    # Rango: de F(fila_datos_credito_inicio_index + 1) a F(fila_suma_credito_index)
+    rango_suma_credito = f'F{fila_datos_credito_inicio_index + 1}:F{fila_suma_credito_index}' 
+    worksheet.write(fila_suma_credito_index, 7, f'=SUM({rango_suma_credito})', formato_moneda_total) 
     
     # --- Ajustes de Columnas ---
-            worksheet.set_column('C:C', 30) 
-            worksheet.set_column('D:D', 15)
-            worksheet.set_column('E:E', 15)
-            worksheet.set_column('F:F', 15)
-            worksheet.set_column('G:H', 18) 
+    worksheet.set_column('C:C', 30) 
+    worksheet.set_column('D:D', 15)
+    worksheet.set_column('E:E', 15)
+    worksheet.set_column('F:F', 15)
+    worksheet.set_column('G:H', 18) 
     
     # Cerrar el writer
-            writer.close()
-            output.seek(0)
-            return output
+    writer.close()
+    output.seek(0)
+    return output
 
 
 # Interfaz de Streamlit
