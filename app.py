@@ -947,7 +947,7 @@ def consolidar_gastos_bancarios(df, banco_seleccionado):
     return df_restante
 
 # Función para encontrar combinaciones que sumen un monto específico
-def encontrar_combinaciones(df, monto_objetivo, tolerancia=0.09, max_combinacion=5):
+def encontrar_combinaciones(df, monto_objetivo, tolerancia=0.5, max_combinacion=5):
     """
     Encuentra combinaciones de valores en df['monto'] que sumen aproximadamente monto_objetivo.
     Restringe la búsqueda a valores del MISMO SIGNO que el objetivo.
@@ -1148,7 +1148,7 @@ def conciliacion_agrupacion_auxiliar(extracto_df, auxiliar_df, extracto_concilia
         indices_combinacion = encontrar_combinaciones(
             auxiliar_no_conciliado, 
             fila_extracto["monto"],
-            tolerancia=0.01
+            tolerancia=0.5
         )
         
         if indices_combinacion:
@@ -1234,7 +1234,7 @@ def conciliacion_agrupacion_extracto(extracto_df, auxiliar_df, extracto_concilia
         indices_combinacion = encontrar_combinaciones(
             extracto_no_conciliado, 
             fila_auxiliar["monto"],
-            tolerancia=0.01
+            tolerancia=0.5
         )
         
         if indices_combinacion:
