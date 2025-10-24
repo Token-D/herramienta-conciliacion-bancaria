@@ -1868,6 +1868,11 @@ if extracto_file and auxiliar_file:
                 st.session_state.invertir_signos = not st.session_state.invertir_signos
                 st.rerun()  # Forzar reejecución de la app
 
+        if not resultados_df.empty:
+            fecha_maxima = resultados_df['fecha'].max()
+            mes_conciliacion = fecha_maxima.month
+            anio_conciliacion = fecha_maxima.year
+
         excel_resumen = generar_excel_resumen_conciliacion(
             resultados_df, 
             banco_seleccionado, 
