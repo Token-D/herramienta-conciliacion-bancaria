@@ -1682,42 +1682,6 @@ if extracto_file and auxiliar_file:
         distribucion_pivot = distribucion_pivot[['Tipo de Conciliación', 'Extracto Bancario', 'Libro Auxiliar', 'Cantidad Total']]
         st.write(distribucion_pivot)
 
-        # 1. Definir el patrón: Buscamos la frase literal 'Gastos Bancarios'
-        patron_gastos_literal = 'Gastos Bancarios'
-        
-        # 2. Filtrar los movimientos
-        # Condición 1: 'tipo_conciliacion' es "No Conciliado"
-        # Condición 2: 'concepto' contiene la frase 'Gastos Bancarios' (insensible a mayúsculas)
-        # Usamos .str.contains con el patrón literal para capturar "Gastos Bancarios - IVA", etc.
-        gastos_bancarios_no_conciliados = resultados_df[
-            (resultados_df['tipo_conciliacion'] == 'No Conciliado') #&
-            # (resultados_df['concepto'].astype(str).str.contains(patron_gastos_literal, case=False, na=False))
-        ]
-
-        if not gastos_bancarios_no_conciliados.empty:
-            st.subheader("⚠️ Resumen Rápido de Gastos Bancarios Pendientes")
-            st.info("A continuación, se muestran los movimientos 'No Conciliados' cuyo concepto incluye la etiqueta 'Gastos Bancarios'.")
-            
-            # 3. Seleccionar y copiar columnas relevantes
-            resumen_gastos = gastos_bancarios_no_conciliados[
-                ['fecha', 'concepto', 'origen', 'monto']
-            ].copy()
-            
-            # 4. Formatear la columna 'monto' para una mejor lectura
-            resumen_gastos['monto'] = resumen_gastos['monto'].apply(lambda x: f"${x:,.2f}")
-            
-            # 5. Renombrar columnas
-            resumen_gastos.columns = ['Fecha', 'Concepto', 'Origen', 'Monto']
-            
-            # 6. Mostrar el DataFrame
-            st.dataframe(resumen_gastos)
-            
-            # 7. Mostrar el total del monto 
-            total_gastos = gastos_bancarios_no_conciliados['monto'].sum()
-            st.markdown(f"**Total Pendiente de Gastos Bancarios:** **${total_gastos:,.2f}**")
-        else:
-            st.success("✅ No se encontraron movimientos 'No Conciliados' con el concepto 'Gastos Bancarios' pendientes.")
-
         st.write("Detalle de todos los movimientos:")
         st.write(resultados_df)
 
