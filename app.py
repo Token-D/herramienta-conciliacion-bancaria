@@ -1555,8 +1555,8 @@ def generar_excel_resumen_conciliacion(resultados_df, banco_seleccionado, mes_co
             formato_negrita = workbook.add_format({'bold': True, 'font_name': 'Arial', 'font_size': 10})
             formato_encabezado_seccion = workbook.add_format({'bold': True, 'font_name': 'Arial', 'font_size': 10, 'bg_color': '#D9D9D9', 'border': 1, 'align': 'center'})
             formato_moneda = workbook.add_format({'num_format': '$#,##0.00', 'font_name': 'Arial', 'font_size': 10})
-            formato_moneda_total = workbook.add_format({'num_format': '$#,##0.00', 'bold': True, 'font_name': 'Arial', 'font_size': 10, 'border_top': 1, 'border_bottom': 6})
-            formato_borde_inferior = workbook.add_format({'border_bottom': 1, 'font_name': 'Arial', 'font_size': 10})
+            formato_moneda_total = workbook.add_format({'num_format': '$#,##0.00', 'bold': True, 'font_name': 'Arial', 'font_size': 10, 'top': 1, 'bottom': 6})
+            formato_borde_inferior = workbook.add_format({'bottom': 1, 'font_name': 'Arial', 'font_size': 10})
             formato_fecha = workbook.add_format({'num_format': 'dd/mm/yyyy', 'font_name': 'Arial', 'font_size': 10})
     
     # --- Dibujar la Plantilla y Escribir Datos Fijos ---
