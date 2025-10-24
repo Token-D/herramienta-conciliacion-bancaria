@@ -728,6 +728,49 @@ def procesar_montos(df, nombre_archivo, es_extracto=False, invertir_signos=False
             
     return df
 
+def obtener_saldo_final_auxiliar(archivo_stream, nombre_archivo):
+
+    try:
+        archivo_stream.seek(0)
+    except Exception:
+        # Esto podría fallar si se pasa un objeto que no es seekable.
+        st.error("Error: El objeto de archivo auxiliar no se pudo reiniciar para la lectura del Saldo Final.")
+        return None
+    
+    try:
+        # Leer el archivo completo sin encabezados para acceder por índice de columna
+        # Use header=None para acceder a las columnas por índice numérico
+        df_completo = pd.read_excel(archivo_stream, header=None, engine='openpyxl')
+        
+        # Columna I es la novena columna, índice 8 (A=0, B=1, ..., I=8)
+        columna_I_index = 8 
+        
+        # Verificar si la columna 8 existe
+        if columna_I_index >= df_completo.shape[1]:
+            st.warning(f"La columna I (índice 8) no existe en el archivo '{nombre_archivo}'.")
+            return None
+
+        # Seleccionar la columna I
+        columna_I = df_completo.iloc[:, columna_I_index]
+        
+        # Convertir a numérico, forzar errores a NaN y limpiar NaN (buscar solo números)
+        columna_I_numerica = pd.to_numeric(columna_I, errors='coerce').dropna()
+        
+        if columna_I_numerica.empty:
+            st.warning(f"No se encontraron valores numéricos en la columna I del archivo '{nombre_archivo}'.")
+            return None
+
+        # Tomar el último valor numérico encontrado (el registro final)
+        # .iloc[-1] obtiene el último elemento de la Serie filtrada
+        ultimo_valor = columna_I_numerica.iloc[-1]
+        
+        return ultimo_valor
+
+    except Exception as e:
+        st.error(f"Error al obtener el Saldo Final Banco de la columna I en '{nombre_archivo}'.")
+        # st.exception(e) # Para debug
+        return None
+
 # Diccionario de conceptos de gastos bancarios a consolidar por banco
 CONCEPTOS_A_CONSOLIDAR = {
     "BBVA": {
@@ -1605,6 +1648,21 @@ if extracto_file and auxiliar_file:
         if resultados_df['fecha'].isna().any():
             st.write("Filas con NaT en 'fecha':")
             st.write(resultados_df[resultados_df['fecha'].isna()])
+
+        # 1. Obtener el Saldo Final Banco de la Columna I del archivo subido
+         saldo_final_banco = obtener_saldo_final_auxiliar(
+            archivo_stream=auxiliar_file, 
+            nombre_archivo="Libro Auxiliar"
+        )
+
+        # 2. Mostrar el resultado en la sección de Conciliación
+        if saldo_final_banco is not None:
+        # Formatear el monto con separadores de miles y decimales
+        saldo_formateado = f"${saldo_final_banco:,.2f}"
+    
+        # Mostrar el Saldo Final Banco al inicio de la sección de Resultados
+        st.subheader("Resultados de la Conciliación")
+        st.markdown(f"**Saldo Final Banco:** **{saldo_formateado}**")
 
         # Mostrar resultados
         st.subheader("Resultados de la Conciliación")
