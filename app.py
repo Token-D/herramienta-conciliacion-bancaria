@@ -949,7 +949,7 @@ def consolidar_gastos_bancarios(df, banco_seleccionado):
 
             nuevas_filas_consolidadas.append(nueva_fila)
             
-            st.success(f"✅ Se consolidaron {num_movimientos} movs de '{concepto_contable_final}' para {row['año_mes']}. Monto total: {monto_consolidado:,.2f}. Fecha: {fecha_consolidada.strftime('%d/%m/%Y')}")
+            # st.success(f"✅ Se consolidaron {num_movimientos} movs de '{concepto_contable_final}' para {row['año_mes']}. Monto total: {monto_consolidado:,.2f}. Fecha: {fecha_consolidada.strftime('%d/%m/%Y')}")
 
             # 6. Recolectar los índices originales para eliminarlos posteriormente
             # Filtrar las filas originales que contribuyeron a este grupo mensual
@@ -1659,13 +1659,10 @@ if extracto_file and auxiliar_file:
         if saldo_final_banco is not None:
         # Formatear el monto con separadores de miles y decimales
          saldo_formateado = f"${saldo_final_banco:,.2f}"
-    
-        # Mostrar el Saldo Final Banco al inicio de la sección de Resultados
-        st.subheader("Resultados de la Conciliación")
-        st.markdown(f"**Saldo Final Banco:** **{saldo_formateado}**")
 
         # Mostrar resultados
         st.subheader("Resultados de la Conciliación")
+        st.markdown(f"**Saldo Final Banco:** **{saldo_formateado}**")
         conciliados = resultados_df[resultados_df['estado'] == 'Conciliado']
         no_conciliados = resultados_df[resultados_df['estado'] == 'No Conciliado']
         porcentaje_conciliados = len(conciliados) / len(resultados_df) * 100 if len(resultados_df) > 0 else 0
