@@ -1494,8 +1494,8 @@ def generar_excel_resumen_conciliacion(resultados_df, banco_seleccionado, mes_co
     # (Esta lógica faltaba en tu función original)
     movs_banco_no_conciliados = resultados_df[
         (resultados_df['origen'] == 'Banco') & 
-        (resultados_df['estado'] == 'No Conciliado') #&
-        #(resultados_df['monto'] > 0) # Solo créditos (aumentos) del banco
+        (resultados_df['estado'] == 'No Conciliado') &
+        (resultados_df['monto'] > 0) # Solo créditos (aumentos) del banco
     ].copy()
 
 
