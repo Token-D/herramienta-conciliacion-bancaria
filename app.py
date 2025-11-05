@@ -1477,14 +1477,14 @@ def generar_excel_resumen_conciliacion(resultados_df, banco_seleccionado, mes_co
     y el pie de página con el Saldo Final Libros y la sección de firmas, con ajustes de formato.
     """
     
-    # 1. Preparar la fecha de corte (último día del mes)
+    # 1. Preparar la fecha de corte
     try:
         fecha_corte = pd.Timestamp(year=anio_conciliacion, month=mes_conciliacion, day=1) + MonthEnd(0)
         fecha_corte_str = fecha_corte.strftime('%d/%m/%Y')
     except Exception:
         fecha_corte_str = "Fecha de Corte Inválida"
 
-    # 2. Filtrar los DataFrames (La lógica de filtrado se mantiene igual)
+    # 2. Filtrar los DataFrames (lógica omitida por brevedad, se mantiene igual)
     movs_aux_no_conciliados = resultados_df[
         (resultados_df['origen'] == 'Libro Auxiliar') & 
         (resultados_df['estado'] == 'No Conciliado') & 
@@ -1503,7 +1503,6 @@ def generar_excel_resumen_conciliacion(resultados_df, banco_seleccionado, mes_co
         (resultados_df['monto'] < 0) 
     ].copy()
 
-    # Aseguramos que existan las columnas clave en los DFs
     if 'tercero' not in movs_aux_no_conciliados.columns:
         movs_aux_no_conciliados['tercero'] = ''
     if 'numero_movimiento' not in movs_aux_no_conciliados.columns:
@@ -1519,59 +1518,48 @@ def generar_excel_resumen_conciliacion(resultados_df, banco_seleccionado, mes_co
     workbook = writer.book
     worksheet = workbook.add_worksheet('Resumen Conciliacion')
     
-    # --- Estilos (Actualizados y Corregidos) ---
+    # --- Estilos CORREGIDOS ---
     
     # FORMATOS BASE
     formato_general = workbook.add_format({'font_name': 'Arial', 'font_size': 10})
     formato_negrita = workbook.add_format({'bold': True, 'font_name': 'Arial', 'font_size': 10})
     formato_encabezado_seccion = workbook.add_format({'bold': True, 'font_name': 'Arial', 'font_size': 10, 'bg_color': '#D9D9D9', 'border': 1, 'align': 'center'})
     
-    # FORMATOS MONEDA Y FECHA (Base para combinaciones)
-    formato_moneda_base = {'num_format': '$#,##0.00', 'font_name': 'Arial'}
-    formato_fecha_base = {'num_format': 'dd/mm/yyyy', 'font_name': 'Arial'}
-    
-    # 4. Formatos de DATOS (Tamaño 9, con borde, sin 0)
-    # CORRECCIÓN: Usamos el operador de desempaquetado (**) para fusionar diccionarios
-    
-    # 4.1. Moneda (G y F) - No muestra 0, con borde, tamaño 9
-    formato_moneda_datos = workbook.add_format({**formato_moneda_base, **{'font_size': 9, 'bottom': 1, 'text_h_align': 2, 'num_format': '$#,##0.00;[RED]-$#,##0.00;;@'}})
-    # 4.2. Texto y Número (C, D, E) - Con borde, tamaño 9
-    formato_borde_inferior_datos = workbook.add_format({'bottom': 1, 'font_name': 'Arial', 'font_size': 9})
-    # 4.3. Fecha (F) - Con borde, tamaño 9
-    formato_fecha_borde_datos = workbook.add_format({**formato_fecha_base, **{'font_size': 9, 'bottom': 1}})
-    
-    # 5. Formatos de TOTALES
-    formato_moneda_total = workbook.add_format({**formato_moneda_base, **{'font_size': 10, 'bold': True, 'top': 1, 'bottom': 6}})
-    
-    # 6. Formatos de CELDAS ESPECÍFICAS
-    # H15 y H47 (Verde Claro)
-    formato_total_verde = workbook.add_format({**formato_moneda_total, **{'bg_color': '#C6EFCE'}})
-    # H49 (Amarillo Claro)
-    formato_total_amarillo = workbook.add_format({**formato_moneda_total, **{'bg_color': '#FFEB9C'}})
-    # Fila de Título que necesita Ajustar Texto (C30/C39 dinámicos)
-    formato_general_ajuste_texto = workbook.add_format({**formato_general, **{'align': 'left', 'text_wrap': True}})
+    # PROPIEDADES BASE (Diccionarios, no Format objects)
+    props_moneda_base = {'num_format': '$#,##0.00', 'font_name': 'Arial'}
+    props_fecha_base = {'num_format': 'dd/mm/yyyy', 'font_name': 'Arial'}
 
-    # 7. Ajuste de H20 (Celda H20 en blanco)
+    # 4. PROPIEDADES TOTALES (Para evitar el error de 'Format' object is not a mapping)
+    props_moneda_total = {**props_moneda_base, **{'font_size': 10, 'bold': True, 'top': 1, 'bottom': 6}}
+    props_moneda_datos = {**props_moneda_base, **{'font_size': 9, 'bottom': 1, 'text_h_align': 2, 'num_format': '$#,##0.00;[RED]-$#,##0.00;;@'}}
+    
+    # 5. CREACIÓN DE OBJETOS FORMAT FINALES
+    formato_moneda_total = workbook.add_format(props_moneda_total)
+    
+    formato_moneda_datos = workbook.add_format(props_moneda_datos)
+    formato_borde_inferior_datos = workbook.add_format({'bottom': 1, 'font_name': 'Arial', 'font_size': 9})
+    formato_fecha_borde_datos = workbook.add_format({**props_fecha_base, **{'font_size': 9, 'bottom': 1}})
+    
+    # Formatos de CELDAS ESPECÍFICAS
+    formato_total_verde = workbook.add_format({**props_moneda_total, **{'bg_color': '#C6EFCE'}})
+    formato_total_amarillo = workbook.add_format({**props_moneda_total, **{'bg_color': '#FFEB9C'}})
+    formato_general_ajuste_texto = workbook.add_format({**formato_general.properties, **{'align': 'left', 'text_wrap': True}})
+
+    # H20 sin texto
     formato_h20 = workbook.add_format({'font_name': 'Arial', 'font_size': 10, 'bg_color': '#D9D9D9', 'border': 1})
 
-    # --- Dibujar la Plantilla y Escribir Datos Fijos (Encabezado y Sección Auxiliar) ---
+    # --- Dibujar la Plantilla y Escribir Datos Fijos ---
     
-    # 1. Título General (C7)
     worksheet.merge_range('C7:H7', 'CONCILIACION BANCARIA', formato_encabezado_seccion)
-    # 2. Datos de Encabezado (C9-D13)
     worksheet.write('C9', 'Banco donde se posee la cuenta', formato_general)
     worksheet.write('C10', 'Número de la cuenta', formato_general)
     worksheet.write('C13', 'Fecha de Corte en la que se efectúa la conciliación', formato_general)
-    # 3. Rellenar Datos Dinámicos de Encabezado
-    worksheet.write('D9', banco_seleccionado, formato_negrita) 
+    worksheet.write('D9', banco_seleccionado, formato_negrita)
     worksheet.write('D13', fecha_corte_str, formato_fecha_borde_datos) 
-    # 4. Saldo Final (H15) y Títulos de Sección
     worksheet.write('C15', 'Saldo según Extracto', formato_negrita)
     worksheet.write('H15', saldo_final_banco, formato_total_verde)
-    # 5. Sección 1: Notas Débito Auxiliar (C17)
     worksheet.merge_range('C17:H17', 'Menos: Cheques girados y entregados pero pendientes de cobro ante la entidad bancaria', formato_general)
     worksheet.merge_range('C18:H18', 'Beneficiario, No. Cheque, CE, Fecha en que se giró (según contabilidad), Valor', formato_general)
-    # 6. Sección 2: Movimientos Auxiliar No Conciliados (Débitos pendientes de pago)
     worksheet.merge_range('C19:H19', 'Menos: Movimientos débito del Libro Auxiliar No Conciliados (Débitos pendientes de pago)', formato_general)
     worksheet.write('C20', 'Tercero', formato_encabezado_seccion)
     worksheet.write('D20', 'Concepto', formato_encabezado_seccion)
@@ -1613,18 +1601,15 @@ def generar_excel_resumen_conciliacion(resultados_df, banco_seleccionado, mes_co
     # 8. SECCIÓN 3: NOTAS CRÉDITO BANCARIAS (Aumentos pendientes)
     fila_base_plantilla_index = fila_suma_debito_index + 1 
     
-    # Ajuste de texto para C30:H30 (dinámico)
     worksheet.merge_range(fila_base_plantilla_index, 2, fila_base_plantilla_index, 7, 
                             'Mas: Notas crédito bancarias que figuran en los extractos aumentando el saldo en extracto pero que todavía se hallan pendientes de registrar en la contabilidad', 
                             formato_general_ajuste_texto) 
     
-    # Encabezado de columnas
     fila_encabezado_credito_index = fila_base_plantilla_index + 1 
     worksheet.write(fila_encabezado_credito_index, 2, 'Concepto', formato_encabezado_seccion)
     worksheet.merge_range(fila_encabezado_credito_index, 3, fila_encabezado_credito_index, 4, 'Fecha en que apareció en el extracto', formato_encabezado_seccion)
     worksheet.write(fila_encabezado_credito_index, 5, 'Valor', formato_encabezado_seccion)
     
-    # Escribir Filas Dinámicas de Créditos del Banco
     fila_datos_credito_inicio_index = fila_encabezado_credito_index + 1
     fila_actual_credito_index = fila_datos_credito_inicio_index
     
@@ -1653,18 +1638,15 @@ def generar_excel_resumen_conciliacion(resultados_df, banco_seleccionado, mes_co
 
     fila_titulo_debito_banco_index = fila_suma_credito_index + 2 
     
-    # Ajuste de texto para C39:H39 (dinámico)
     worksheet.merge_range(fila_titulo_debito_banco_index, 2, fila_titulo_debito_banco_index, 7,
                             'Menos: Notas débito bancarias que figuran en los extractos disminuyendo el saldo en extracto pero que todavía se hallan pendientes de registrar en la contabilidad',
                             formato_general_ajuste_texto)
     
-    # Encabezado de columnas
     fila_encabezado_debito_banco_index = fila_titulo_debito_banco_index + 1
     worksheet.write(fila_encabezado_debito_banco_index, 2, 'Concepto', formato_encabezado_seccion)
     worksheet.merge_range(fila_encabezado_debito_banco_index, 3, fila_encabezado_debito_banco_index, 4, 'Fecha en que apareció en el extracto', formato_encabezado_seccion)
     worksheet.write(fila_encabezado_debito_banco_index, 5, 'Valor', formato_encabezado_seccion)
     
-    # Escribir Filas Dinámicas de Débitos del Banco
     fila_datos_debito_banco_inicio_index = fila_encabezado_debito_banco_index + 1
     fila_actual_debito_banco_index = fila_datos_debito_banco_inicio_index
     
@@ -1693,26 +1675,19 @@ def generar_excel_resumen_conciliacion(resultados_df, banco_seleccionado, mes_co
     
     # 10. SECCIÓN FINAL: SALDO FINAL LIBROS Y FIRMAS
     
-    # --- Saldo Final Libros (Fila 47 dinámica) ---
     fila_saldo_final_libros_index = fila_suma_debito_banco_index + 1 
     
-    # G47: Saldo Final Libros
     worksheet.write(fila_saldo_final_libros_index, 6, 'Saldo Final Libros', formato_negrita)
     
-    # H47: Fórmula Dinámica con relleno verde
     formula_saldo_libros = f'=H15+{referencia_h29}+{referencia_h37}+{referencia_h46}'
     worksheet.write(fila_saldo_final_libros_index, 7, formula_saldo_libros, formato_total_verde)
 
-    # --- Total Saldo Según Extracto (Fila 49 dinámica) ---
     fila_total_saldo_extracto_index = fila_suma_debito_banco_index + 3 
     
-    # C49: Total Saldo Según Extracto
     worksheet.write(fila_total_saldo_extracto_index, 2, 'Total Saldo Según Extracto', formato_negrita)
     
-    # H49: Mismo formato que H46 y relleno amarillo
     worksheet.write(fila_total_saldo_extracto_index, 7, '', formato_total_amarillo)
     
-    # --- Firmas (Fila 52 y 53 dinámicas) ---
     fila_firma_52_index = fila_suma_debito_banco_index + 6
     fila_firma_53_index = fila_suma_debito_banco_index + 7
     
