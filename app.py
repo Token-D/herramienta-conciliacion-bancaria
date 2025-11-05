@@ -1519,24 +1519,26 @@ def generar_excel_resumen_conciliacion(resultados_df, banco_seleccionado, mes_co
     workbook = writer.book
     worksheet = workbook.add_worksheet('Resumen Conciliacion')
     
-    # --- Estilos (Actualizados) ---
+    # --- Estilos (Actualizados y Corregidos) ---
     
     # FORMATOS BASE
     formato_general = workbook.add_format({'font_name': 'Arial', 'font_size': 10})
     formato_negrita = workbook.add_format({'bold': True, 'font_name': 'Arial', 'font_size': 10})
     formato_encabezado_seccion = workbook.add_format({'bold': True, 'font_name': 'Arial', 'font_size': 10, 'bg_color': '#D9D9D9', 'border': 1, 'align': 'center'})
     
-    # FORMATOS MONEDA Y FECHA (9 y 10 puntos)
+    # FORMATOS MONEDA Y FECHA (Base para combinaciones)
     formato_moneda_base = {'num_format': '$#,##0.00', 'font_name': 'Arial'}
     formato_fecha_base = {'num_format': 'dd/mm/yyyy', 'font_name': 'Arial'}
     
     # 4. Formatos de DATOS (Tamaño 9, con borde, sin 0)
+    # CORRECCIÓN: Usamos el operador de desempaquetado (**) para fusionar diccionarios
+    
     # 4.1. Moneda (G y F) - No muestra 0, con borde, tamaño 9
-    formato_moneda_datos = workbook.add_format(formato_moneda_base | {'font_size': 9, 'bottom': 1, 'text_h_align': 2, 'num_format': '$#,##0.00;[RED]-$#,##0.00;;@'})
+    formato_moneda_datos = workbook.add_format({**formato_moneda_base, **{'font_size': 9, 'bottom': 1, 'text_h_align': 2, 'num_format': '$#,##0.00;[RED]-$#,##0.00;;@'}})
     # 4.2. Texto y Número (C, D, E) - Con borde, tamaño 9
     formato_borde_inferior_datos = workbook.add_format({'bottom': 1, 'font_name': 'Arial', 'font_size': 9})
     # 4.3. Fecha (F) - Con borde, tamaño 9
-    formato_fecha_borde_datos = workbook.add_format(formato_fecha_base | {'font_size': 9, 'bottom': 1})
+    formato_fecha_borde_datos = workbook.add_format({**formato_fecha_base, **{'font_size': 9, 'bottom': 1}})
     
     # 5. Formatos de TOTALES
     formato_moneda_total = workbook.add_format({**formato_moneda_base, **{'font_size': 10, 'bold': True, 'top': 1, 'bottom': 6}})
