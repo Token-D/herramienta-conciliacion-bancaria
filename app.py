@@ -185,10 +185,6 @@ def normalizar_dataframe(df, columnas_esperadas, banco_seleccionado="Generico"):
     
     # Eliminar columnas duplicadas después de renombrar
     df = df.loc[:, ~df.columns.duplicated(keep='first')]
-
-    # ------------------------------------------------------------------
-    ## Lógica para Eliminar Registros Vacíos en 'fecha' o 'monto'
-    # Las columnas clave que siempre deben existir y no estar vacías son 'fecha' y 'monto'.
     
     columnas_a_verificar = []
     if 'fecha' in df.columns:
@@ -204,7 +200,6 @@ def normalizar_dataframe(df, columnas_esperadas, banco_seleccionado="Generico"):
         # Opcional: Para ser más riguroso, podrías querer convertir el monto a numérico 
         # y eliminar valores no numéricos, pero dropna ya maneja NaN.
         # df = df[pd.to_numeric(df['monto'], errors='coerce').notna()]
-    # ------------------------------------------------------------------
     
     # Si no se encontró 'numero_movimiento', crearlo vacío/generarlo
     if 'numero_movimiento' not in df.columns:
@@ -321,10 +316,6 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
             formato_fecha, _ = detectar_formato_fechas(df['fecha_str'])
             #st.write(f"Formato de fecha detectado en {nombre_archivo}: {formato_fecha}")
 
-        
-        # ----------------------------------------------------------------------
-        # A. FUNCIÓN DEDICADA PARA EL LIBRO AUXILIAR (DD/MM/YYYY FIJO Y ROBUSTO)
-        # ----------------------------------------------------------------------
         def parsear_fecha_auxiliar(fecha_str):
             if pd.isna(fecha_str) or fecha_str in ['', 'nan', 'NaT', 'None']:
                 return pd.NaT
@@ -362,9 +353,7 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
                 return pd.NaT
             except (ValueError, IndexError):
                 return pd.NaT
-        # ----------------------------------------------------------------------
-        # 2. FUNCIÓN DEDICADA PARA EL EXTRACTO BANCARIO (CON LÓGICA COMPLEJA)
-        # ----------------------------------------------------------------------
+
         def parsear_fecha_extracto(fecha_str, formato_fecha, banco_seleccionado):
             if pd.isna(fecha_str) or fecha_str in ['', 'nan', 'NaT']:
                 return pd.NaT
@@ -374,12 +363,6 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
                 fecha_str = str(fecha_str).replace('-', '/').replace('.', '/')
                 fecha_solo = fecha_str.split(' ')[0] # Quitamos la hora si existe
 
-                # ---------------------------------------------------------------
-                # 🎯 FIX ESPECÍFICO para BBVA (Año/Mes/Día)
-                # DATO: 25/09/01 (Debe ser: 2025/09/01)
-                # La heurística es: Si es BBVA y tiene tres componentes, asumimos 
-                # que la estructura es [Año Corto]/[Mes]/[Día].
-                # ---------------------------------------------------------------
                 if banco_seleccionado == "BBVA":
                     partes = fecha_solo.split('/')
                     if len(partes) == 3:
@@ -405,9 +388,6 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
                             # Si falla la conversión a int, continuamos con el parser genérico
                             pass 
 
-                # ---------------------------------------------------------------
-                # Lógica Genérica de Fallback (para los otros bancos)
-                # ---------------------------------------------------------------
 
                 # Usar formato detectado (Lógica original)
                 if formato_fecha != "desconocido":
@@ -481,9 +461,7 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
             años_validos = auxiliar_df['fecha'].dropna().apply(lambda x: x.year if pd.notna(x) else None)
             año_base = años_validos.mode()[0] if not años_validos.empty else año_base_default
 
-        # ----------------------------------------------------------------------
-        # APLICAR EL PARSEO DE FECHAS (Se ajusta la llamada para pasar el banco)
-        # ----------------------------------------------------------------------
+
         if es_extracto:
             df['fecha'] = df['fecha_str'].apply(
                 lambda x: parsear_fecha_extracto(x, formato_fecha, banco_seleccionado)
@@ -527,7 +505,6 @@ def procesar_montos(df, nombre_archivo, es_extracto=False, invertir_signos=False
     aplicando lógica específica según el banco seleccionado.
     """
 
-    # --- Función auxiliar de limpieza LATINO (Manejo Bancolombia y Genérico) ---
     # Esta es la versión robusta que funciona para Bancolombia (punto decimal)
     def limpiar_monto_bancolombia_generico(series):
         series_str = series.astype(str).str.strip()
@@ -543,7 +520,6 @@ def procesar_montos(df, nombre_archivo, es_extracto=False, invertir_signos=False
         series_str = series_str.str.replace(',', '', regex=False) 
         
         return pd.to_numeric(series_str, errors='coerce')
-    # -------------------------------------------------------------------------
     
     # --- Función auxiliar de limpieza DAVIVIENDA (Manejo de coma como decimal) ---
     def limpiar_monto_davivienda(series):
@@ -555,19 +531,15 @@ def procesar_montos(df, nombre_archivo, es_extracto=False, invertir_signos=False
         # 3. Cambia la coma por punto (separador decimal).
         series_str = series_str.str.replace(',', '.', regex=False) 
         return pd.to_numeric(series_str, errors='coerce')
-    # -------------------------------------------------------------------------
 
     columnas = df.columns.str.lower()
 
-    # --- Lógica de Manejo de Monto Único ---
     if "monto" in columnas and df["monto"].notna().any() and (df["monto"] != 0).any():
         
         # 1. Limpieza y Conversión Específica por Banco
         if es_extracto and banco_seleccionado == "Davivienda":
-            # 🎯 LÓGICA DAVIVIENDA (Monto único, usa la limpieza específica de coma decimal)
             df["monto"] = limpiar_monto_davivienda(df["monto"]).fillna(0)
-            
-            # --- LÓGICA ESPECÍFICA DE SIGNO Y CONCEPTO PARA DAVIVIENDA ---
+
             if df["monto"].abs().sum() > 0 and 'concepto' in df.columns:
                 
                 terminos_debito = ['débito', 'debito', 'nota débito', 'cargo', 'retiro', 'dcto', 'descuento']
@@ -581,7 +553,6 @@ def procesar_montos(df, nombre_archivo, es_extracto=False, invertir_signos=False
                 #st.success("Davivienda: Lógica de signos y formato 'coma decimal' aplicada correctamente.")
             
         elif es_extracto and banco_seleccionado == "Bancolombia":
-            # 🎯 LÓGICA BANCOLOMBIA (Monto único, usa la limpieza de punto decimal)
             #st.info("Bancolombia detectado: Aplicando limpieza de formato numérico (punto decimal) al monto único.")
             
             df["monto"] = limpiar_monto_bancolombia_generico(df["monto"]).fillna(0)
@@ -703,7 +674,6 @@ def procesar_montos(df, nombre_archivo, es_extracto=False, invertir_signos=False
     if df["monto"].eq(0).all() and (cols_debito or cols_credito) and not es_extracto:
         st.warning(f"La columna 'monto' resultó en ceros en {nombre_archivo}. Verifica las columnas de débitos/créditos.")
 
-    # 🌟 FILTRO FINAL: ELIMINAR MONTOS CERO Y NaN EN EL EXTRACTO BANCARIO 🌟
     if es_extracto and 'monto' in df.columns and not df.empty:
         filas_antes = len(df)
         
@@ -1031,7 +1001,6 @@ def encontrar_combinaciones(df, monto_objetivo, tolerancia=0.5, max_combinacion=
             # Si el objetivo es negativo, solo incluimos valores <= tolerancia (casi cero o negativo)
             if not es_objetivo_positivo and valor_num > tolerancia:
                 continue
-            # -------------------------------------------
 
             movimientos.append(valor_num)
             indices_validos.append(idx)
@@ -1207,17 +1176,13 @@ def conciliacion_agrupacion_auxiliar(extracto_df, auxiliar_df, extracto_concilia
             nuevos_extracto_conciliado.add(idx_extracto)
             nuevos_auxiliar_conciliado.update(indices_combinacion)
             
-            # 2. **ACTUALIZACIÓN CRÍTICA (UNICIDAD)**: Eliminar los índices usados del DataFrame de trabajo del auxiliar.
             auxiliar_no_conciliado = auxiliar_no_conciliado.drop(indices_combinacion, errors='ignore')
             
-            # 3. **FECHA**: Usamos el objeto datetime original (¡REVERTIDO!)
             fecha_extracto = fila_extracto["fecha"] 
 
-            # 4. Obtener números de documento
             docs_conciliacion = auxiliar_df.loc[indices_combinacion, "numero_movimiento"].astype(str).tolist()
             docs_conciliacion = [str(doc) for doc in docs_conciliacion]
             
-            # Añadir a resultados - Movimiento del extracto
             resultados.append({
                 'fecha': fecha_extracto, # <--- OBJETO DATETIME
                 'tercero': '',
@@ -1293,11 +1258,9 @@ def conciliacion_agrupacion_extracto(extracto_df, auxiliar_df, extracto_concilia
             nuevos_auxiliar_conciliado.add(idx_auxiliar)
             nuevos_extracto_conciliado.update(indices_combinacion)
             
-            # 2. **ACTUALIZACIÓN CRÍTICA (UNICIDAD)**: Eliminar los índices usados del DataFrame de trabajo del extracto.
             # Esto evita que los registros del extracto se reutilicen en la siguiente iteración del auxiliar.
             extracto_no_conciliado = extracto_no_conciliado.drop(indices_combinacion, errors='ignore')
 
-            # 3. **FORMATO DE FECHA**: Aplicar formato de fecha DD/MM/YYYY al registro del auxiliar
             fecha_auxiliar_str = fila_auxiliar["fecha"].strftime('%d/%m/%Y')
                         
             # 4. Obtener números de movimiento (usamos el extracto_df original para evitar errores)
@@ -1348,7 +1311,6 @@ def conciliar_banco_completo(extracto_df, auxiliar_df):
     Implementa la lógica completa de conciliación.
     """
 
-    # 🌟 CORRECCIÓN CRÍTICA DE FECHA DEL LIBRO AUXILIAR 🌟
     # Esto garantiza que 02/05/2025 se interprete correctamente como 5 de Febrero,
     # resolviendo la ambigüedad que rompe la conciliación directa.
     if 'fecha' in auxiliar_df.columns:
@@ -1399,7 +1361,6 @@ def conciliar_banco_completo(extracto_df, auxiliar_df):
         resultados_agrup_ext
     ], ignore_index=True)
     
-    # 🌟 SOLUCIÓN DEFINITIVA: FILTRAR SOLO MONTO CERO CON ORIGEN EN EL BANCO 🌟
     if 'monto' in resultados_finales.columns and 'origen' in resultados_finales.columns and not resultados_finales.empty:
         
         # 1. Identificar todos los registros con monto exactamente cero (o muy cercano)
@@ -1424,11 +1385,7 @@ def aplicar_formato_excel(writer, resultados_df):
     Aplica formatos específicos (encabezados, fechas, moneda, no conciliados) 
     al DataFrame de resultados antes de guardarlo en Excel.
     """
-    
-    # ----------------------------------------------------
-    # CAMBIO CRÍTICO: Asegurar que la columna 'fecha' sea datetime y que 
-    # interprete el día primero (DD/MM/YYYY) para corregir inconsistencias visuales.
-    # ----------------------------------------------------
+
     try:
         # Intenta convertir la columna 'fecha' al formato datetime de Pandas.
         # Usa errors='coerce' para convertir fechas inválidas a NaT (Not a Time).
@@ -1437,7 +1394,6 @@ def aplicar_formato_excel(writer, resultados_df):
     except KeyError:
         # En caso de que la columna 'fecha' no exista, se ignora (aunque es poco probable)
         pass
-    # ----------------------------------------------------
 
     worksheet = writer.sheets['Resultados']
     workbook = writer.book
@@ -1514,82 +1470,82 @@ def aplicar_formato_excel(writer, resultados_df):
                                 # Usa write para otros tipos (texto/general)
                                 worksheet.write(row_num, col_idx, valor, formato_no_conciliado)
 
-from io import BytesIO
-import xlsxwriter
-import numpy as np
-import pandas as pd
-# from pandas.tseries.offsets import MonthEnd # Asegúrate de que esta línea esté importada al inicio
-
 def generar_excel_resumen_conciliacion(resultados_df, banco_seleccionado, mes_conciliacion, anio_conciliacion, saldo_final_banco):
     """
-    Genera el archivo Excel solo con la hoja 'Resumen Conciliacion' basado en el formato.
+    Genera el archivo Excel solo con la hoja 'Resumen Conciliacion' basado en el formato,
+    incluyendo dinámicamente los movimientos no conciliados del Auxiliar y del Banco.
     """
     
     # 1. Preparar la fecha de corte (último día del mes)
     try:
-        # Crea un Timestamp a partir del mes y año y obtiene el último día
         fecha_corte = pd.Timestamp(year=anio_conciliacion, month=mes_conciliacion, day=1) + MonthEnd(0)
         fecha_corte_str = fecha_corte.strftime('%d/%m/%Y')
     except Exception:
         fecha_corte_str = "Fecha de Corte Inválida"
 
-    # 2. Filtrar los movimientos del auxiliar No Conciliados (Sección de Débitos Pendientes)
+    # 2. Filtrar los movimientos del auxiliar No Conciliados (Débitos pendientes)
     movs_aux_no_conciliados = resultados_df[
         (resultados_df['origen'] == 'Libro Auxiliar') & 
-        (resultados_df['tipo_conciliacion'] == 'No Conciliado') &
+        (resultados_df['estado'] == 'No Conciliado') &
         (resultados_df['monto'] < 0) # Solo débitos (restas) del auxiliar
     ].copy()
 
-    # Aseguramos que existan las columnas clave
+    # 3. Filtrar los movimientos del Banco No Conciliados (Créditos pendientes)
+    # (Esta lógica faltaba en tu función original)
+    movs_banco_no_conciliados = resultados_df[
+        (resultados_df['origen'] == 'Banco') & 
+        (resultados_df['estado'] == 'No Conciliado') &
+        #(resultados_df['monto'] > 0) # Solo créditos (aumentos) del banco
+    ].copy()
+
+
+    # Aseguramos que existan las columnas clave en ambos DFs
     if 'tercero' not in movs_aux_no_conciliados.columns:
         movs_aux_no_conciliados['tercero'] = ''
     if 'numero_movimiento' not in movs_aux_no_conciliados.columns:
         movs_aux_no_conciliados['numero_movimiento'] = ''
+    if 'concepto' not in movs_banco_no_conciliados.columns:
+        movs_banco_no_conciliados['concepto'] = ''
 
-    # 3. Inicializar el Excel
+    # 4. Inicializar el Excel
     output = BytesIO()
     writer = pd.ExcelWriter(output, engine='xlsxwriter')
     workbook = writer.book
 
-    # ----------------------------------------------------
     # HOJA: RESUMEN CONCILIACION
-    # ----------------------------------------------------
     worksheet = workbook.add_worksheet('Resumen Conciliacion')
     
-    # --- Estilos Básicos (Corregidos) ---
+    # --- Estilos Básicos ---
     formato_general = workbook.add_format({'font_name': 'Arial', 'font_size': 10})
     formato_negrita = workbook.add_format({'bold': True, 'font_name': 'Arial', 'font_size': 10})
     formato_encabezado_seccion = workbook.add_format({'bold': True, 'font_name': 'Arial', 'font_size': 10, 'bg_color': '#D9D9D9', 'border': 1, 'align': 'center'})
     formato_moneda = workbook.add_format({'num_format': '$#,##0.00', 'font_name': 'Arial', 'font_size': 10})
-    
-    # Formato Moneda Total CORREGIDO (top, bottom en lugar de border_top/bottom)
     formato_moneda_total = workbook.add_format({'num_format': '$#,##0.00', 'bold': True, 'font_name': 'Arial', 'font_size': 10, 'top': 1, 'bottom': 6})
-    
     formato_borde_inferior = workbook.add_format({'bottom': 1, 'font_name': 'Arial', 'font_size': 10})
+    
+    # Formato de fecha con borde inferior (para el bucle de datos)
+    formato_fecha_borde = workbook.add_format({'num_format': 'dd/mm/yyyy', 'font_name': 'Arial', 'font_size': 10, 'bottom': 1})
+    # Formato de fecha sin borde (para la fecha de corte)
     formato_fecha = workbook.add_format({'num_format': 'dd/mm/yyyy', 'font_name': 'Arial', 'font_size': 10})
     
     # --- Dibujar la Plantilla y Escribir Datos Fijos ---
     
+    # (Se omite la plantilla estática por brevedad, es la misma que tenías)
     # 1. Título General (C7)
     worksheet.merge_range('C7:H7', 'CONCILIACION BANCARIA', formato_encabezado_seccion)
-    
     # 2. Datos de Encabezado (C9-D13)
     worksheet.write('C9', 'Banco donde se posee la cuenta', formato_general)
     worksheet.write('C10', 'Número de la cuenta', formato_general)
     worksheet.write('C13', 'Fecha de Corte en la que se efectúa la conciliación', formato_general)
-    
     # 3. Rellenar Datos Dinámicos de Encabezado
     worksheet.write('D9', banco_seleccionado, formato_negrita) # D9: Nombre del Banco
     worksheet.write('D13', fecha_corte_str, formato_fecha) # D13: Fecha de Corte
-    
     # 4. Saldo Final (H15) y Títulos de Sección
     worksheet.write('C15', 'Saldo según Extracto', formato_negrita)
     worksheet.write('H15', saldo_final_banco, formato_moneda_total) # H15: Saldo Final Banco
-    
     # 5. Sección 1: Notas Débito Auxiliar (C17)
     worksheet.merge_range('C17:H17', 'Menos: Cheques girados y entregados pero pendientes de cobro ante la entidad bancaria', formato_general)
     worksheet.merge_range('C18:H18', 'Beneficiario, No. Cheque, CE, Fecha en que se giró (según contabilidad), Valor', formato_general)
-    
     # 6. Sección 2: Movimientos Auxiliar No Conciliados (Débitos pendientes de pago)
     worksheet.merge_range('C19:H19', 'Menos: Movimientos débito del Libro Auxiliar No Conciliados (Débitos pendientes de pago)', formato_general)
     worksheet.write('C20', 'Tercero', formato_encabezado_seccion)
@@ -1598,41 +1554,43 @@ def generar_excel_resumen_conciliacion(resultados_df, banco_seleccionado, mes_co
     worksheet.write('F20', 'Fecha', formato_encabezado_seccion)
     worksheet.write('G20', 'Valor', formato_encabezado_seccion)
     worksheet.write('H20', '', formato_encabezado_seccion)
-    
+
+
     # 7. ESCRIBIR FILAS DINÁMICAS (Débitos pendientes del Auxiliar)
+    # (Esta parte estaba bien, solo dependía del filtro correcto)
     
-    fila_inicio_datos = 21 # Fila 1-base de inicio de datos (Fila 21 en Excel)
-    fila_actual_index = fila_inicio_datos - 1 # Índice 0-base de inicio de datos (Index 20)
+    fila_inicio_datos_aux = 21 # Fila 1-base de inicio de datos (Fila 21 en Excel)
+    fila_actual_index_aux = fila_inicio_datos_aux - 1 # Índice 0-base de inicio de datos (Index 20)
     
     for _, row in movs_aux_no_conciliados.iterrows():
-        # Escribir usando el índice 0-base directamente
-        worksheet.write(fila_actual_index, 2, row['tercero'], formato_borde_inferior)        # C: Tercero 
-        worksheet.write(fila_actual_index, 3, row['concepto'], formato_borde_inferior)       # D: Concepto 
-        worksheet.write(fila_actual_index, 4, row['numero_movimiento'], formato_borde_inferior) # E: No. Egreso 
-        worksheet.write(fila_actual_index, 5, row['fecha'], formato_fecha)                  # F: Fecha 
-        worksheet.write(fila_actual_index, 6, abs(row['monto']), formato_moneda)            # G: Valor 
+        worksheet.write(fila_actual_index_aux, 2, row['tercero'], formato_borde_inferior)        # C: Tercero 
+        worksheet.write(fila_actual_index_aux, 3, row['concepto'], formato_borde_inferior)       # D: Concepto 
+        worksheet.write(fila_actual_index_aux, 4, row['numero_movimiento'], formato_borde_inferior) # E: No. Egreso 
+        worksheet.write(fila_actual_index_aux, 5, row['fecha'], formato_fecha_borde)               # F: Fecha 
+        worksheet.write(fila_actual_index_aux, 6, abs(row['monto']), formato_moneda)             # G: Valor 
         
-        fila_actual_index += 1
+        fila_actual_index_aux += 1
 
     # Definir la última fila de datos (mínimo Fila 28, index 27)
-    ultima_fila_datos_index = max(27, fila_actual_index - 1) # Índice de la última fila con datos/formato
+    min_filas_aux = 8 # La plantilla base tiene 8 filas (21 a 28)
+    min_ultima_fila_aux_index = fila_inicio_datos_aux + min_filas_aux - 2 # 21 + 8 - 2 = 27
+    
+    ultima_fila_datos_aux_index = max(min_ultima_fila_aux_index, fila_actual_index_aux - 1)
     
     # La Fila de la SUMA es la siguiente a la última fila de datos
-    fila_suma_debito_index = ultima_fila_datos_index + 1 
+    fila_suma_debito_index = ultima_fila_datos_aux_index + 1 
     
-    # 8. Rellenar las filas de formato base si hay menos de 9 registros
-    # Rango: desde la primera fila VACÍA (fila_actual_index) hasta el index 27 (Fila 28)
-    if fila_actual_index <= 27:
-        for r in range(fila_actual_index, 28): # range(20, 28) si no hay datos, por ejemplo
+    # 8. Rellenar las filas de formato base si hay menos de 8 registros
+    if fila_actual_index_aux <= min_ultima_fila_aux_index:
+        for r in range(fila_actual_index_aux, min_ultima_fila_aux_index + 1):
             worksheet.write(r, 2, '', formato_borde_inferior)
             worksheet.write(r, 3, '', formato_borde_inferior)
             worksheet.write(r, 4, '', formato_borde_inferior)
             worksheet.write(r, 5, '', formato_borde_inferior)
             worksheet.write(r, 6, 0, formato_moneda)
             
-    # 9. Escribir la FÓRMULA DE SUMA DINÁMICA (en la celda H28 o equivalente)
-    # Rango: de G21 (index 20) a G(ultima_fila_datos_index + 1)
-    rango_suma_g = f'G{fila_inicio_datos}:G{ultima_fila_datos_index + 1}' 
+    # 9. Escribir la FÓRMULA DE SUMA DINÁMICA (en la celda H29 o equivalente)
+    rango_suma_g = f'G{fila_inicio_datos_aux}:G{ultima_fila_datos_aux_index + 1}' 
     worksheet.write(fila_suma_debito_index, 7, f'=SUM({rango_suma_g})', formato_moneda_total) 
     
     
@@ -1650,26 +1608,40 @@ def generar_excel_resumen_conciliacion(resultados_df, banco_seleccionado, mes_co
     worksheet.write(fila_encabezado_credito_index, 2, 'Concepto', formato_encabezado_seccion) # C
     worksheet.merge_range(fila_encabezado_credito_index, 3, fila_encabezado_credito_index, 4, 'Fecha en que apareció en el extracto', formato_encabezado_seccion) # D:E (Fusionado)
     worksheet.write(fila_encabezado_credito_index, 5, 'Valor', formato_encabezado_seccion) # F
+        
+    fila_datos_credito_inicio_index = fila_encabezado_credito_index + 1
+    fila_actual_credito_index = fila_datos_credito_inicio_index
     
-    # Rellenar con formatos de las celdas (5 filas de datos)
-    fila_datos_credito_inicio_index = fila_encabezado_credito_index + 1 # Primera fila de datos (Index)
-    num_filas_credito = 5
-    
-    # f es el índice 0-base de la fila
-    # CORRECCIÓN CLAVE para evitar OverlappingRange: Usamos 'f' directamente en merge_range
-    for f in range(fila_datos_credito_inicio_index, fila_datos_credito_inicio_index + num_filas_credito):
+    # Iterar sobre los movimientos de banco no conciliados (créditos)
+    for _, row in movs_banco_no_conciliados.iterrows():
         # C (index 2)
-        worksheet.write(f, 2, '', formato_borde_inferior) 
-        # D:E (index 3 a 4)
-        worksheet.merge_range(f, 3, f, 4, '', formato_borde_inferior) 
+        worksheet.write(fila_actual_credito_index, 2, row['concepto'], formato_borde_inferior) 
+        # D:E (index 3 a 4) - Usamos formato_fecha_borde para la fecha
+        worksheet.merge_range(fila_actual_credito_index, 3, fila_actual_credito_index, 4, row['fecha'], formato_fecha_borde) 
         # F (index 5)
-        worksheet.write(f, 5, 0, formato_moneda) 
+        worksheet.write(fila_actual_credito_index, 5, abs(row['monto']), formato_moneda) 
+        
+        fila_actual_credito_index += 1
 
-    fila_suma_credito_index = fila_datos_credito_inicio_index + num_filas_credito # Fila donde va la suma (Index)
+    # Definir la última fila de datos (mínimo 5 filas)
+    min_filas_credito = 5
+    min_ultima_fila_credito_index = fila_datos_credito_inicio_index + min_filas_credito - 1
     
-    # Fórmula de suma (H35 o equivalente)
-    # Rango: de F(fila_datos_credito_inicio_index + 1) a F(fila_suma_credito_index)
-    rango_suma_credito = f'F{fila_datos_credito_inicio_index + 1}:F{fila_suma_credito_index}' 
+    ultima_fila_credito_index = max(min_ultima_fila_credito_index, fila_actual_credito_index - 1)
+    
+    # Rellenar las filas de formato base si hay menos de 5 registros
+    if fila_actual_credito_index <= min_ultima_fila_credito_index:
+        for r in range(fila_actual_credito_index, min_ultima_fila_credito_index + 1):
+            worksheet.write(r, 2, '', formato_borde_inferior) 
+            worksheet.merge_range(r, 3, r, 4, '', formato_borde_inferior) 
+            worksheet.write(r, 5, 0, formato_moneda) 
+
+    # Fila donde va la suma (Index)
+    fila_suma_credito_index = ultima_fila_credito_index + 1
+    
+    # Fórmula de suma (H37 o equivalente)
+    # Rango: de F(fila_datos_credito_inicio_index + 1) a F(ultima_fila_credito_index + 1)
+    rango_suma_credito = f'F{fila_datos_credito_inicio_index + 1}:F{ultima_fila_credito_index + 1}' 
     worksheet.write(fila_suma_credito_index, 7, f'=SUM({rango_suma_credito})', formato_moneda_total) 
     
     # --- Ajustes de Columnas ---
