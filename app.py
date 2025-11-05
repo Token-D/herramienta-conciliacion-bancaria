@@ -1556,7 +1556,7 @@ def generar_excel_resumen_conciliacion(resultados_df, banco_seleccionado, mes_co
     worksheet.write('C13', 'Fecha de Corte en la que se efectúa la conciliación', formato_general)
     worksheet.write('D9', banco_seleccionado, formato_negrita)
     worksheet.write('D13', fecha_corte_str, formato_fecha_borde_datos) 
-    worksheet.write('C15', 'Saldo según Extracto', formato_negrita)
+    worksheet.write('C15', 'Saldo según Libros', formato_negrita)
     worksheet.write('H15', saldo_final_banco, formato_total_verde)
     worksheet.merge_range('C17:H17', 'Menos: Cheques girados y entregados pero pendientes de cobro ante la entidad bancaria', formato_general)
     worksheet.merge_range('C18:H18', 'Beneficiario, No. Cheque, CE, Fecha en que se giró (según contabilidad), Valor', formato_general)
@@ -1566,7 +1566,6 @@ def generar_excel_resumen_conciliacion(resultados_df, banco_seleccionado, mes_co
     worksheet.write('E20', 'No. Egreso', formato_encabezado_seccion)
     worksheet.write('F20', 'Fecha', formato_encabezado_seccion)
     worksheet.write('G20', 'Valor', formato_encabezado_seccion)
-    worksheet.write('H20', '', formato_h20)
 
     # 7. ESCRIBIR FILAS DINÁMICAS (Auxiliar)
     fila_inicio_datos_aux = 21 
@@ -1601,13 +1600,14 @@ def generar_excel_resumen_conciliacion(resultados_df, banco_seleccionado, mes_co
     # 8. SECCIÓN 3: NOTAS CRÉDITO BANCARIAS (Aumentos pendientes)
     fila_base_plantilla_index = fila_suma_debito_index + 1 
     
-    #worksheet.merge_range(fila_base_plantilla_index, 2, fila_base_plantilla_index, 7, 
-                           # 'Mas: Notas crédito bancarias que figuran en los extractos aumentando el saldo en extracto pero que todavía se hallan pendientes de registrar en la contabilidad', 
-                           # formato_general_ajuste_texto) 
+    # Mas: Notas crédito (Título de sección)
+    worksheet.merge_range(fila_base_plantilla_index, 2, fila_base_plantilla_index, 7, 
+                            'Mas: Notas crédito bancarias que figuran en los extractos aumentando el saldo en extracto pero que todavía se hallan pendientes de registrar en la contabilidad', 
+                            formato_general) 
     
     fila_encabezado_credito_index = fila_base_plantilla_index + 1 
     worksheet.write(fila_encabezado_credito_index, 2, 'Concepto', formato_encabezado_seccion)
-    worksheet.merge_range(fila_encabezado_credito_index, 3, fila_encabezado_credito_index, 4, 'Fecha en que apareció en el extracto', formato_encabezado_seccion)
+    worksheet.merge_range(fila_encabezado_credito_index, 3, fila_encabezado_credito_index, 4, 'Fecha extracto', formato_encabezado_seccion)
     worksheet.write(fila_encabezado_credito_index, 5, 'Valor', formato_encabezado_seccion)
     
     fila_datos_credito_inicio_index = fila_encabezado_credito_index + 1
@@ -1638,13 +1638,14 @@ def generar_excel_resumen_conciliacion(resultados_df, banco_seleccionado, mes_co
 
     fila_titulo_debito_banco_index = fila_suma_credito_index + 2 
     
-    #worksheet.merge_range(fila_titulo_debito_banco_index, 2, fila_titulo_debito_banco_index, 7,
-                           # 'Menos: Notas débito bancarias que figuran en los extractos disminuyendo el saldo en extracto pero que todavía se hallan pendientes de registrar en la contabilidad',
-                           # formato_general_ajuste_texto)
+    # Menos: Notas débito (Título de sección)
+    worksheet.merge_range(fila_titulo_debito_banco_index, 2, fila_titulo_debito_banco_index, 7,
+                            'Menos: Notas débito bancarias que figuran en los extractos disminuyendo el saldo en extracto pero que todavía se hallan pendientes de registrar en la contabilidad',
+                            formato_general)
     
     fila_encabezado_debito_banco_index = fila_titulo_debito_banco_index + 1
     worksheet.write(fila_encabezado_debito_banco_index, 2, 'Concepto', formato_encabezado_seccion)
-    worksheet.merge_range(fila_encabezado_debito_banco_index, 3, fila_encabezado_debito_banco_index, 4, 'Fecha en que apareció en el extracto', formato_encabezado_seccion)
+    worksheet.merge_range(fila_encabezado_debito_banco_index, 3, fila_encabezado_debito_banco_index, 4, 'Fecha extracto', formato_encabezado_seccion)
     worksheet.write(fila_encabezado_debito_banco_index, 5, 'Valor', formato_encabezado_seccion)
     
     fila_datos_debito_banco_inicio_index = fila_encabezado_debito_banco_index + 1
