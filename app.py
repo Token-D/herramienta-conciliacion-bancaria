@@ -1543,7 +1543,7 @@ def generar_excel_resumen_conciliacion(resultados_df, banco_seleccionado, mes_co
     # Formatos de CELDAS ESPECÍFICAS
     formato_total_verde = workbook.add_format({**props_moneda_total, **{'bg_color': '#C6EFCE'}})
     formato_total_amarillo = workbook.add_format({**props_moneda_total, **{'bg_color': '#FFEB9C'}})
-    formato_general_ajuste_texto = workbook.add_format({**formato_general.properties, **{'align': 'left', 'text_wrap': True}})
+    #formato_general_ajuste_texto = workbook.add_format({**formato_general.properties, **{'align': 'left', 'text_wrap': True}})
 
     # H20 sin texto
     formato_h20 = workbook.add_format({'font_name': 'Arial', 'font_size': 10, 'bg_color': '#D9D9D9', 'border': 1})
