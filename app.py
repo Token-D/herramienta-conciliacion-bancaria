@@ -1601,9 +1601,9 @@ def generar_excel_resumen_conciliacion(resultados_df, banco_seleccionado, mes_co
     # 8. SECCIÓN 3: NOTAS CRÉDITO BANCARIAS (Aumentos pendientes)
     fila_base_plantilla_index = fila_suma_debito_index + 1 
     
-    worksheet.merge_range(fila_base_plantilla_index, 2, fila_base_plantilla_index, 7, 
-                            'Mas: Notas crédito bancarias que figuran en los extractos aumentando el saldo en extracto pero que todavía se hallan pendientes de registrar en la contabilidad', 
-                            formato_general_ajuste_texto) 
+    #worksheet.merge_range(fila_base_plantilla_index, 2, fila_base_plantilla_index, 7, 
+                           # 'Mas: Notas crédito bancarias que figuran en los extractos aumentando el saldo en extracto pero que todavía se hallan pendientes de registrar en la contabilidad', 
+                           # formato_general_ajuste_texto) 
     
     fila_encabezado_credito_index = fila_base_plantilla_index + 1 
     worksheet.write(fila_encabezado_credito_index, 2, 'Concepto', formato_encabezado_seccion)
