@@ -1638,9 +1638,9 @@ def generar_excel_resumen_conciliacion(resultados_df, banco_seleccionado, mes_co
 
     fila_titulo_debito_banco_index = fila_suma_credito_index + 2 
     
-    worksheet.merge_range(fila_titulo_debito_banco_index, 2, fila_titulo_debito_banco_index, 7,
-                            'Menos: Notas débito bancarias que figuran en los extractos disminuyendo el saldo en extracto pero que todavía se hallan pendientes de registrar en la contabilidad',
-                            formato_general_ajuste_texto)
+    #worksheet.merge_range(fila_titulo_debito_banco_index, 2, fila_titulo_debito_banco_index, 7,
+                           # 'Menos: Notas débito bancarias que figuran en los extractos disminuyendo el saldo en extracto pero que todavía se hallan pendientes de registrar en la contabilidad',
+                           # formato_general_ajuste_texto)
     
     fila_encabezado_debito_banco_index = fila_titulo_debito_banco_index + 1
     worksheet.write(fila_encabezado_debito_banco_index, 2, 'Concepto', formato_encabezado_seccion)
