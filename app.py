@@ -748,12 +748,14 @@ CONCEPTOS_A_CONSOLIDAR = {
             "IVA COMISION ADMON NET CASH", 
             "IVA COMISION PAGO REALIZAD N",
             "IVA POR COMISIO",
+            "IVA COMISION TRASLADO AFCNE",
         ],
         "Comisión": [
             "COMISION ADMON NET CASH",
             "COMISION PAGO REALIZADO NETC",
             "COMISION POR DOMICILIACION",
             "COMISION POR DO",
+            "COMISION TRASLADO AFCNETCAS",
         ],
         "GMF": [
             "CARGO POR IMPUESTO 4X1.000",
@@ -813,6 +815,7 @@ CONCEPTOS_A_CONSOLIDAR = {
         "IVA": [
             "COBRO IVA PAGOS AUTOMATICOS",
             "IVA CUOTA MANEJO SUC VIRT EMP",
+            "VALOR IVA",
             ],
         "GMF": [
             "IMPTO GOBIERNO 4X1000",
@@ -822,6 +825,10 @@ CONCEPTOS_A_CONSOLIDAR = {
             "COMISION PAGO A PROVEEDORES",
             "COMISION PAGO DE NOMINA",
             "COMISION POR PAGOS A NEQUI",
+            "COMIS TRASLADO EN SUCURSAL",
+            ],
+        "Rendimientos": [
+            "ABONO INTERESES AHORROS", 
             ]
     }
 }
