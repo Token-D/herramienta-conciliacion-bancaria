@@ -474,8 +474,8 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
         # Reportar fechas inválidas
         fechas_invalidas = df['fecha'].isna().sum()
         if fechas_invalidas > 0:
-            st.warning(f"Se encontraron {fechas_invalidas} fechas inválidas en {nombre_archivo}.")
-            st.write(df[df['fecha'].isna()][['fecha_original', 'fecha_str']].head())
+            #st.warning(f"Se encontraron {fechas_invalidas} fechas inválidas en {nombre_archivo}.")
+            #st.write(df[df['fecha'].isna()][['fecha_original', 'fecha_str']].head())
 
         # Filtrar por mes solo para extracto si se especifica
         if mes_conciliacion and es_extracto:
@@ -930,7 +930,7 @@ def consolidar_gastos_bancarios(df, banco_seleccionado):
             # Davivienda tiene conceptos de rendimiento (Nota Crédito) que son positivos
             if monto_consolidado > 0 and banco_seleccionado != "Davivienda":
                  # Emitir una advertencia, pero se permite la fila positiva en Davivienda por notas crédito.
-                 st.warning(f"El concepto '{concepto_contable_final}' consolidó un monto positivo ({monto_consolidado}). Revisar la definición del concepto.")
+                 st.warning(f"El concepto '{concepto_contable_final}' consolidó un monto positivo ({monto_consolidado}).")
 
             nuevas_filas_consolidadas.append(nueva_fila)
             
