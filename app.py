@@ -475,7 +475,7 @@ def estandarizar_fechas(df, nombre_archivo, mes_conciliacion=None, completar_ani
         fechas_invalidas = df['fecha'].isna().sum()
         if fechas_invalidas > 0:
             #st.warning(f"Se encontraron {fechas_invalidas} fechas inválidas en {nombre_archivo}.")
-            #st.write(df[df['fecha'].isna()][['fecha_original', 'fecha_str']].head())
+            st.write(df[df['fecha'].isna()][['fecha_original', 'fecha_str']].head())
 
         # Filtrar por mes solo para extracto si se especifica
         if mes_conciliacion and es_extracto:
