@@ -748,14 +748,14 @@ CONCEPTOS_A_CONSOLIDAR = {
             "IVA COMISION ADMON NET CASH", 
             "IVA COMISION PAGO REALIZAD N",
             "IVA POR COMISIO",
-            "IVA COMISION TRASLADO AFCNE",
+            "IVA COMISION TRASLADO  AFCNE",
         ],
         "Comisión": [
             "COMISION ADMON NET CASH",
             "COMISION PAGO REALIZADO NETC",
             "COMISION POR DOMICILIACION",
             "COMISION POR DO",
-            "COMISION TRASLADO AFCNETCAS",
+            "COMISION TRASLADO  AFCNETCAS",
         ],
         "GMF": [
             "CARGO POR IMPUESTO 4X1.000",
